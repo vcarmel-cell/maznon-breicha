@@ -546,6 +546,11 @@ tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
+<!-- OFFLINE INDICATOR -->
+<div id="offline-indicator" style="display:none; position:fixed; bottom:16px; left:16px; background:#F59E0B; color:#fff; padding:8px 14px; border-radius:8px; font-size:13px; z-index:200; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+  📴 מצב לא מקוון — שמירה מקומית בלבד
+</div>
+
 <!-- LOADING OVERLAY -->
 <div id="loading-overlay" class="hidden" style="position:fixed; inset:0; background:rgba(8,61,92,0.35); z-index:500; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(2px);">
   <div style="background:#fff; border-radius:16px; padding:28px 40px; text-align:center; border:1px solid #BAE6FD; box-shadow:0 12px 40px rgba(8,61,92,0.2);">
@@ -571,16 +576,24 @@ const FIREBASE_CONFIG = {
 
 async function fbInit() {
   try {
+    if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     fdb = firebase.firestore();
     try { await fdb.enablePersistence({ synchronizeTabs: true }); } catch(e) {}
     return true;
-  } catch(e) { console.error('Firebase init:', e); return false; }
+  } catch(e) { console.warn('Firebase:', e.message); fdb = null; return false; }
 }
 
-function fbSet(col, id, data) { return fdb.collection(col).doc(String(id)).set(data); }
-function fbDel(col, id)       { return fdb.collection(col).doc(String(id)).delete(); }
+function fbSet(col, id, data) {
+  if (!fdb) return Promise.resolve();
+  return fdb.collection(col).doc(String(id)).set(data);
+}
+function fbDel(col, id) {
+  if (!fdb) return Promise.resolve();
+  return fdb.collection(col).doc(String(id)).delete();
+}
 async function fbBatch(ops) {
+  if (!fdb) return;
   const b = fdb.batch();
   for (const op of ops) {
     const r = fdb.collection(op.col).doc(String(op.id));
@@ -593,6 +606,13 @@ async function fbBatch(ops) {
 const DB = { customers: [], products: [], invoices: [] };
 let _editCustId = null, _editProdId = null, _cart = [], _confirmCb = null, _printInv = null;
 
+function dbSave() {
+  localStorage.setItem('billing_db', JSON.stringify(DB));
+}
+function dbLoadLocal() {
+  try { const s = localStorage.getItem('billing_db'); if (s) Object.assign(DB, JSON.parse(s)); } catch(e) {}
+}
+
 function showLoading(on, msg = 'שומר נתונים...') {
   document.getElementById('loading-overlay').classList.toggle('hidden', !on);
   document.getElementById('loading-msg').textContent = msg;
@@ -601,14 +621,19 @@ function showLoading(on, msg = 'שומר נתונים...') {
 async function dbLoad() {
   showLoading(true, 'טוען נתונים...');
   try {
-    const [c, p, i] = await Promise.all([
-      fdb.collection('customers').get(),
-      fdb.collection('products').get(),
-      fdb.collection('invoices').get()
-    ]);
-    DB.customers = c.docs.map(d => d.data());
-    DB.products  = p.docs.map(d => d.data());
-    DB.invoices  = i.docs.map(d => d.data());
+    if (fdb) {
+      const [c, p, i] = await Promise.all([
+        fdb.collection('customers').get(),
+        fdb.collection('products').get(),
+        fdb.collection('invoices').get()
+      ]);
+      DB.customers = c.docs.map(d => d.data());
+      DB.products  = p.docs.map(d => d.data());
+      DB.invoices  = i.docs.map(d => d.data());
+      dbSave();
+    } else {
+      dbLoadLocal();
+    }
   } finally { showLoading(false); }
 }
 
@@ -751,21 +776,20 @@ async function saveCustomer() {
     if (_editCustId) {
       const idx = DB.customers.findIndex(c => c.id === _editCustId);
       DB.customers[idx] = data;
-      const batch = fdb.batch();
-      batch.set(fdb.collection('customers').doc(id), data);
+      const ops = [{ type: 'set', col: 'customers', id, data }];
       DB.invoices.forEach(inv => {
         if (inv.customerId === _editCustId) {
           inv.customerName = name;
-          batch.set(fdb.collection('invoices').doc(inv.num), inv);
+          ops.push({ type: 'set', col: 'invoices', id: inv.num, data: inv });
         }
       });
-      await batch.commit();
+      await fbBatch(ops);
     } else {
       if (DB.customers.find(c => c.id === id)) { alert('מספר חיוב זה כבר קיים'); return; }
       DB.customers.push(data);
       await fbSet('customers', id, data);
     }
-    closeModal('customer-modal'); renderCustomers();
+    dbSave(); closeModal('customer-modal'); renderCustomers();
   } catch(e) { alert('שגיאה: ' + e.message); }
   finally { showLoading(false); }
 }
@@ -775,7 +799,7 @@ function deleteCustomerById(id) {
   askDelete('מנוי', c.name, async () => {
     await fbDel('customers', id);
     DB.customers = DB.customers.filter(x => x.id !== id);
-    renderCustomers();
+    dbSave(); renderCustomers();
   });
 }
 
@@ -841,7 +865,7 @@ async function saveProduct() {
       DB.products.push(p);
       await fbSet('products', id, p);
     }
-    closeModal('product-modal'); renderProducts();
+    dbSave(); closeModal('product-modal'); renderProducts();
   } catch(e) { alert('שגיאה: ' + e.message); }
   finally { showLoading(false); }
 }
@@ -851,7 +875,7 @@ function deleteProductById(id) {
   askDelete('מוצר', p.name, async () => {
     await fbDel('products', id);
     DB.products = DB.products.filter(x => x.id !== id);
-    renderProducts();
+    dbSave(); renderProducts();
   });
 }
 
@@ -966,6 +990,7 @@ async function saveInvoice() {
   try {
     await fbBatch(ops);
     DB.invoices.push(inv);
+    dbSave();
     _cart = [];
     alert('🏖️ חשבון ' + inv.num + ' נסגר בהצלחה!');
     showPage('invoices');
@@ -1047,7 +1072,7 @@ async function deleteInvoice(num) {
   ops.push({ type: 'del', col: 'invoices', id: num });
   await fbBatch(ops);
   DB.invoices = DB.invoices.filter(i => i.num !== num);
-  renderInvoices();
+  dbSave(); renderInvoices();
 }
 
 // ─── INVOICE VIEW ────────────────────────────────────────────
@@ -1354,7 +1379,6 @@ async function applyFirebaseConfig() {
   if (!cfg.apiKey || !cfg.projectId) {
     errEl.textContent = 'Config חסר שדות (apiKey / projectId)'; errEl.style.display = 'block'; return;
   }
-  fbCfgSave(cfg);
   const ok = await fbInit();
   if (!ok) {
     errEl.textContent = 'שגיאה בחיבור ל-Firebase — בדוק שה-Config נכון ו-Firestore פעיל'; errEl.style.display = 'block'; return;
@@ -1365,12 +1389,12 @@ async function applyFirebaseConfig() {
 }
 
 async function boot() {
+  document.getElementById('setup-screen').style.display = 'none';
   const ok = await fbInit();
   if (!ok) {
-    document.getElementById('setup-screen').style.display = 'flex';
-    return;
+    const ind = document.getElementById('offline-indicator');
+    if (ind) ind.style.display = 'flex';
   }
-  document.getElementById('setup-screen').style.display = 'none';
   await dbLoad();
   showPage('dashboard');
 }
