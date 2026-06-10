@@ -637,18 +637,25 @@ async function dbLoad() {
   showLoading(true, 'טוען נתונים...');
   try {
     if (fdb) {
-      const [c, p, i] = await Promise.all([
-        fdb.collection('customers').get(),
-        fdb.collection('products').get(),
-        fdb.collection('invoices').get()
-      ]);
-      DB.customers = c.docs.map(d => d.data());
-      DB.products  = p.docs.map(d => d.data());
-      DB.invoices  = i.docs.map(d => d.data());
-      dbSave();
-    } else {
-      dbLoadLocal();
+      try {
+        const [c, p, i] = await Promise.all([
+          fdb.collection('customers').get(),
+          fdb.collection('products').get(),
+          fdb.collection('invoices').get()
+        ]);
+        DB.customers = c.docs.map(d => d.data());
+        DB.products  = p.docs.map(d => d.data());
+        DB.invoices  = i.docs.map(d => d.data());
+        dbSave();
+        return;
+      } catch(e) {
+        console.warn('Firestore error, falling back to localStorage:', e.message);
+        fdb = null;
+        const ind = document.getElementById('offline-indicator');
+        if (ind) ind.style.display = 'flex';
+      }
     }
+    dbLoadLocal();
   } finally { showLoading(false); }
 }
 
@@ -1404,18 +1411,24 @@ async function applyFirebaseConfig() {
 }
 
 async function boot() {
-  document.getElementById('setup-screen').style.display = 'none';
-  showLoading(true, 'מתחבר...');
-  const sdkLoaded = await loadFirebaseSDK();
-  showLoading(false);
-  if (sdkLoaded) {
-    await fbInit();
+  try {
+    document.getElementById('setup-screen').style.display = 'none';
+    showLoading(true, 'מתחבר...');
+    try {
+      const sdkLoaded = await loadFirebaseSDK();
+      if (sdkLoaded) await fbInit();
+    } catch(e) { console.warn('Firebase load:', e.message); }
+    showLoading(false);
+    if (!fdb) {
+      const ind = document.getElementById('offline-indicator');
+      if (ind) ind.style.display = 'flex';
+    }
+    await dbLoad();
+  } catch(e) {
+    console.error('boot error:', e);
+    showLoading(false);
+    dbLoadLocal();
   }
-  if (!fdb) {
-    const ind = document.getElementById('offline-indicator');
-    if (ind) ind.style.display = 'flex';
-  }
-  await dbLoad();
   showPage('dashboard');
 }
 
