@@ -558,16 +558,18 @@ tr:last-child td { border-bottom: none; }
 // ─── FIREBASE ────────────────────────────────────────────────
 let fdb = null;
 
-function fbCfgGet() {
-  try { return JSON.parse(localStorage.getItem('billing_fb_cfg') || 'null'); } catch(e) { return null; }
-}
-function fbCfgSave(cfg) { localStorage.setItem('billing_fb_cfg', JSON.stringify(cfg)); }
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD_iu3GJPjkVU3ATCI0qonO2YA_y0RvX5c",
+  authDomain: "miznonpool.firebaseapp.com",
+  projectId: "miznonpool",
+  storageBucket: "miznonpool.firebasestorage.app",
+  messagingSenderId: "259097334594",
+  appId: "1:259097334594:web:e13ba4796082cdee57eedb"
+};
 
 async function fbInit() {
-  const cfg = fbCfgGet();
-  if (!cfg?.apiKey) return false;
   try {
-    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     fdb = firebase.firestore();
     try { await fdb.enablePersistence({ synchronizeTabs: true }); } catch(e) {}
     return true;
@@ -1366,6 +1368,7 @@ async function boot() {
     document.getElementById('setup-screen').style.display = 'flex';
     return;
   }
+  document.getElementById('setup-screen').style.display = 'none';
   await dbLoad();
   showPage('dashboard');
 }
