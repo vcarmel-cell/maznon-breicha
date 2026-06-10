@@ -1147,7 +1147,8 @@ async function saveInvoice() {
     dbSave();
     _cart = [];
     alert('🏖️ חשבון ' + inv.num + ' נסגר בהצלחה!');
-    showPage('invoices');
+    if (adminMode) showPage('invoices');
+    else initNewInvoice();
   } catch(e) {
     // Revert stock on error
     items.forEach(item => {
