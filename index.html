@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מזנון הבריכה</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #EFF9FF; color: #0C4A6E; direction: rtl; }
+
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 225px;
+  background: linear-gradient(180deg, #083D5C 0%, #0C5A84 100%);
+  color: #fff; display: flex; flex-direction: column;
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 100;
+  box-shadow: -3px 0 18px rgba(0,0,0,0.18);
+}
+.main { margin-right: 225px; flex: 1; padding: 28px; }
+
+.sidebar-header {
+  padding: 24px 18px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(135deg, #0369A1 0%, #083D5C 100%);
+}
+.sidebar-brand { font-size: 32px; line-height: 1; margin-bottom: 6px; }
+.sidebar-header h2 { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: 0.3px; }
+.sidebar-header p { font-size: 11px; color: #7DD3FC; margin-top: 3px; }
+
+.nav { padding: 10px 0; flex: 1; }
+.nav a {
+  display: flex; align-items: center; gap: 11px;
+  padding: 13px 18px; color: #93C5FD; text-decoration: none;
+  font-size: 14px; transition: all 0.15s;
+  border-right: 3px solid transparent; cursor: pointer;
+}
+.nav a:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.nav a.active { background: rgba(56,189,248,0.18); color: #fff; border-right-color: #38BDF8; }
+.nav a .icon { font-size: 18px; width: 26px; text-align: center; flex-shrink: 0; }
+
+.sidebar-footer {
+  padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 11px; color: #7DD3FC; text-align: center;
+}
+
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 26px; }
+.page-header h1 { font-size: 26px; font-weight: 800; color: #0C4A6E; }
+.page-header p { color: #0369A1; font-size: 14px; margin-top: 5px; opacity: 0.8; }
+
+.btn {
+  padding: 9px 18px; border: none; border-radius: 9px;
+  font-size: 14px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.15s; font-family: inherit; font-weight: 600;
+}
+.btn-primary { background: linear-gradient(135deg, #0EA5E9, #0284C7); color: #fff; box-shadow: 0 2px 8px rgba(14,165,233,0.35); }
+.btn-primary:hover { background: linear-gradient(135deg, #0284C7, #0369A1); box-shadow: 0 3px 12px rgba(14,165,233,0.4); }
+.btn-danger { background: #EF4444; color: #fff; }
+.btn-danger:hover { background: #DC2626; }
+.btn-secondary { background: #E0F2FE; color: #0369A1; border: 1px solid #BAE6FD; }
+.btn-secondary:hover { background: #BAE6FD; }
+.btn-success { background: linear-gradient(135deg, #10B981, #059669); color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,0.3); }
+.btn-success:hover { background: linear-gradient(135deg, #059669, #047857); }
+.btn-sm { padding: 5px 11px; font-size: 13px; }
+.btn-outline { background: transparent; border: 1.5px solid #0EA5E9; color: #0284C7; }
+.btn-outline:hover { background: #E0F2FE; }
+
+.card {
+  background: #fff; border-radius: 16px;
+  border: 1px solid #BAE6FD; padding: 22px;
+  box-shadow: 0 2px 14px rgba(14,165,233,0.08);
+}
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 16px; margin-bottom: 26px; }
+.stat-card {
+  background: #fff; border-radius: 16px; padding: 20px;
+  border: 1px solid #BAE6FD;
+  box-shadow: 0 2px 12px rgba(14,165,233,0.08);
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute; top: 0; right: 0; left: 0;
+  height: 4px; border-radius: 16px 16px 0 0;
+}
+.stat-card:nth-child(1)::before { background: #38BDF8; }
+.stat-card:nth-child(2)::before { background: #34D399; }
+.stat-card:nth-child(3)::before { background: #F59E0B; }
+.stat-card:nth-child(4)::before { background: #F472B6; }
+.stat-card .stat-icon { font-size: 30px; margin-bottom: 10px; }
+.stat-card .stat-label { font-size: 13px; color: #0369A1; margin-bottom: 6px; font-weight: 500; }
+.stat-card .stat-value { font-size: 28px; font-weight: 800; color: #0C4A6E; }
+.stat-card .stat-sub { font-size: 12px; color: #7DD3FC; margin-top: 4px; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  background: #F0F9FF; text-align: right;
+  padding: 12px 16px; font-size: 13px;
+  font-weight: 700; color: #0369A1; border-bottom: 2px solid #BAE6FD;
+}
+td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #E0F2FE; color: #0C4A6E; }
+tr:hover td { background: #F0F9FF; }
+tr:last-child td { border-bottom: none; }
+
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(8,61,92,0.5);
+  z-index: 200; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.modal {
+  background: #fff; border-radius: 20px; padding: 28px;
+  width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(8,61,92,0.2);
+  border: 1px solid #BAE6FD;
+}
+.modal h2 { font-size: 20px; margin-bottom: 20px; color: #0C4A6E; font-weight: 800; }
+.modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #0369A1; }
+.form-group input, .form-group select {
+  width: 100%; padding: 10px 12px; border: 1.5px solid #BAE6FD; border-radius: 9px;
+  font-size: 14px; font-family: inherit; transition: all 0.15s; direction: rtl;
+  background: #F0F9FF; color: #0C4A6E;
+}
+.form-group input:focus, .form-group select:focus {
+  outline: none; border-color: #0EA5E9; box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
+  background: #fff;
+}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.invoice-grid { display: grid; grid-template-columns: 1fr 365px; gap: 24px; }
+
+.products-picker {
+  background: #fff; border: 1px solid #BAE6FD;
+  border-radius: 16px; padding: 18px;
+  box-shadow: 0 2px 14px rgba(14,165,233,0.07);
+}
+.products-picker h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: #0C4A6E; }
+
+.product-list-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 13px; border-radius: 10px; margin-bottom: 7px;
+  background: #F0F9FF; border: 1px solid #BAE6FD; transition: all 0.12s;
+}
+.product-list-item:hover { background: #E0F2FE; border-color: #7DD3FC; transform: translateX(-2px); }
+.product-list-item .pname { font-size: 14px; font-weight: 600; color: #0C4A6E; }
+.product-list-item .pdetails { font-size: 12px; color: #0369A1; margin-top: 2px; opacity: 0.8; }
+
+.cart {
+  background: #fff; border: 1px solid #BAE6FD;
+  border-radius: 16px; padding: 18px;
+  box-shadow: 0 2px 14px rgba(14,165,233,0.07);
+}
+.cart h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: #0C4A6E; }
+.cart-item { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid #E0F2FE; }
+.cart-item .cname { flex: 1; font-size: 13px; color: #0C4A6E; }
+.cart-item .cqty {
+  width: 52px; padding: 5px 8px;
+  border: 1.5px solid #BAE6FD; border-radius: 7px;
+  text-align: center; font-size: 14px; font-family: inherit;
+  background: #F0F9FF; color: #0C4A6E;
+}
+.cart-item .cprice { width: 76px; text-align: left; font-size: 13px; font-weight: 700; color: #0C4A6E; }
+.cart-total {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 14px; margin-top: 8px; font-weight: 800; font-size: 17px;
+  color: #0C4A6E;
+}
+
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+.badge-blue  { background: #E0F2FE; color: #0369A1; }
+.badge-green { background: #D1FAE5; color: #047857; }
+.badge-red   { background: #FEE2E2; color: #B91C1C; }
+.badge-yellow{ background: #FEF3C7; color: #B45309; }
+
+.search-bar { position: relative; margin-bottom: 14px; }
+.search-bar input { padding-right: 36px; }
+.search-icon {
+  position: absolute; right: 11px; top: 50%;
+  transform: translateY(-50%); color: #7DD3FC; font-size: 15px; pointer-events: none;
+}
+
+.empty-state { text-align: center; padding: 40px 20px; color: #7DD3FC; }
+.empty-state .empty-icon { font-size: 44px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.hidden { display: none !important; }
+.page { display: none; }
+.page.active { display: block; }
+
+@media (max-width: 900px) {
+  .sidebar { width: 58px; }
+  .sidebar-header h2, .sidebar-header p, .sidebar-brand, .nav a span:not(.icon), .sidebar-footer { display: none; }
+  .main { margin-right: 58px; padding: 16px; }
+  .invoice-grid { grid-template-columns: 1fr; }
+  .form-row { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">&#x1F3CA;&#x2600;&#xFE0F;</div>
+      <h2>מזנון הבריכה</h2>
+      <p>ניהול מכירות ולקוחות</p>
+    </div>
+    <nav class="nav">
+      <a onclick="showPage('dashboard')" id="nav-dashboard" class="active">
+        <span class="icon">&#x1F30A;</span><span>ראשי</span>
+      </a>
+      <a onclick="showPage('customers')" id="nav-customers">
+        <span class="icon">&#x1F3CA;</span><span>מנויים</span>
+      </a>
+      <a onclick="showPage('products')" id="nav-products">
+        <span class="icon">&#x1F366;</span><span>מוצרים</span>
+      </a>
+      <a onclick="showPage('new-invoice')" id="nav-new-invoice">
+        <span class="icon">&#x1F6D2;</span><span>מכירה חדשה</span>
+      </a>
+      <a onclick="showPage('invoices')" id="nav-invoices">
+        <span class="icon">&#x1F9FE;</span><span>היסטוריה</span>
+      </a>
+      <a onclick="showPage('export')" id="nav-export">
+        <span class="icon">&#x1F4CA;</span><span>ייצוא Excel</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">&#x1F3CA; עונת הקיץ &#x2600;&#xFE0F;</div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div>
+          <h1>&#x1F305; בוקר טוב, מזנון!</h1>
+          <p id="dashboard-date"></p>
+        </div>
+        <button class="btn btn-primary" onclick="showPage('new-invoice')">&#x1F6D2; מכירה חדשה</button>
+      </div>
+      <div class="stats-grid" id="stats-grid"></div>
+      <div class="card">
+        <h3 style="margin-bottom:18px; font-size:16px; font-weight:800; color:#0C4A6E;">&#x1F9FE; מכירות אחרונות</h3>
+        <div class="table-wrap">
+          <table id="recent-table">
+            <thead><tr>
+              <th>מס' חשבון</th><th>תאריך</th><th>מנוי</th><th>סה"כ</th><th>פעולות</th>
+            </tr></thead>
+            <tbody id="recent-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CUSTOMERS -->
+    <div id="page-customers" class="page">
+      <div class="page-header">
+        <div>
+          <h1>&#x1F3CA; מנויי הבריכה</h1>
+          <p>הוסף, ערוך ומחק מנויים</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <label class="btn btn-secondary" style="cursor:pointer;" title="ייבא מנויים מקובץ Excel עם עמודות: שם לקוח, מספר חיוב">
+            &#x1F4C2; ייבא מ-Excel
+            <input type="file" id="import-excel-input" accept=".xlsx,.xls" style="display:none;" onchange="importCustomersExcel(this)">
+          </label>
+          <button class="btn btn-primary" onclick="openCustomerModal()">&#x2795; הוסף מנוי</button>
+        </div>
+      </div>
+      <div id="import-result" style="display:none; margin-bottom:14px;"></div>
+      <div class="card">
+        <div class="search-bar">
+          <span class="search-icon">&#x1F50D;</span>
+          <input type="text" placeholder="חיפוש לפי שם מנוי, מספר חיוב או טלפון..." id="customer-search" oninput="renderCustomers()">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>מספר חיוב</th><th>שם מנוי</th><th>טלפון</th><th>חשבונות</th><th>סה"כ רכישות</th><th>פעולות</th>
+            </tr></thead>
+            <tbody id="customers-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div id="page-products" class="page">
+      <div class="page-header">
+        <div>
+          <h1>&#x1F366; תפריט המזנון</h1>
+          <p>משקאות, אוכל, גלידות וחטיפים</p>
+        </div>
+        <button class="btn btn-primary" onclick="openProductModal()">&#x2795; הוסף מוצר</button>
+      </div>
+      <div class="card">
+        <div class="search-bar">
+          <span class="search-icon">&#x1F50D;</span>
+          <input type="text" placeholder="חיפוש מוצר..." id="product-search" oninput="renderProducts()">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>שם מוצר</th><th>מחיר</th><th>מלאי</th><th>פעולות</th>
+            </tr></thead>
+            <tbody id="products-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW INVOICE -->
+    <div id="page-new-invoice" class="page">
+      <div class="page-header">
+        <div>
+          <h1>&#x1F6D2; מכירה חדשה</h1>
+          <p>בחר מנוי ומוצרים מהתפריט</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:22px;">
+        <div class="form-row">
+          <div class="form-group" style="margin:0;">
+            <label>מנוי *</label>
+            <select id="inv-customer" onchange="onCustomerChange()">
+              <option value="">-- בחר מנוי --</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>תאריך *</label>
+            <input type="date" id="inv-date">
+          </div>
+        </div>
+        <div id="inv-customer-badge" style="display:none; margin-top:12px; padding:10px 14px; background:#E0F2FE; border-radius:9px; font-size:14px; border:1px solid #7DD3FC; color:#0C4A6E;"></div>
+      </div>
+
+      <div class="invoice-grid">
+        <div class="products-picker">
+          <h3>&#x1F366; פריטים מהתפריט</h3>
+          <div class="search-bar">
+            <span class="search-icon">&#x1F50D;</span>
+            <input type="text" placeholder="חיפוש מוצר..." id="inv-product-search" oninput="renderPickerProducts()">
+          </div>
+          <div id="picker-list"></div>
+        </div>
+
+        <div>
+          <div class="cart" style="position:sticky; top:24px;">
+            <h3>&#x1F9FE; חשבון פתוח</h3>
+            <div id="cart-items-list"></div>
+            <div id="cart-empty-msg" style="color:#94A3B8; text-align:center; padding:24px 0; font-size:13px;">
+              לא נבחרו פריטים
+            </div>
+            <div id="cart-total-row" class="cart-total" style="display:none;">
+              <span>סה"כ לתשלום:</span>
+              <span id="cart-total-val" style="color:#0284C7;">&#x20AA;0</span>
+            </div>
+            <div style="margin-top:18px; display:flex; flex-direction:column; gap:9px;">
+              <button class="btn btn-success" style="width:100%; justify-content:center; padding:11px;" onclick="saveInvoice()">&#x2705; סגור חשבון</button>
+              <button class="btn btn-outline" style="width:100%; justify-content:center;" onclick="previewPrint()">&#x1F5A8; הדפסה מקדימה</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVOICES -->
+    <div id="page-invoices" class="page">
+      <div class="page-header">
+        <div>
+          <h1>&#x1F4CB; היסטוריית מכירות</h1>
+          <p>כל החשבונות שנסגרו</p>
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; align-items:center;">
+          <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+            <select id="filter-month" onchange="renderInvoices()">
+              <option value="">כל החודשים</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0; flex:1; min-width:160px;">
+            <select id="filter-customer" onchange="renderInvoices()">
+              <option value="">כל המנויים</option>
+            </select>
+          </div>
+          <span id="filter-summary" style="font-size:13px; color:#64748B; white-space:nowrap;"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>מס' חשבון</th><th>תאריך</th><th>מנוי</th><th>פריטים</th><th>סה"כ</th><th>פעולות</th>
+            </tr></thead>
+            <tbody id="invoices-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPORT -->
+    <div id="page-export" class="page">
+      <div class="page-header">
+        <div>
+          <h1>&#x1F4CA; ייצוא Excel</h1>
+          <p>ייצא דוח מכירות חודשי לקובץ גיליון אלקטרוני</p>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:340px 1fr; gap:24px; align-items:start;">
+        <div class="card">
+          <div class="form-group">
+            <label>חודש לייצוא</label>
+            <select id="exp-month">
+              <option value="">כל הזמן</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>סוג הדוח</label>
+            <select id="exp-type">
+              <option value="detail">מפורט — שורה לכל פריט</option>
+              <option value="summary">סיכום — לפי לקוח</option>
+            </select>
+          </div>
+          <div id="exp-count" style="font-size:13px; color:#64748B; margin-bottom:16px;"></div>
+          <button class="btn btn-success" style="width:100%; justify-content:center; padding:12px; font-size:15px;" onclick="runExport()">
+            &#x1F4CA; ייצא לקובץ Excel
+          </button>
+        </div>
+        <div class="card" id="exp-preview">
+          <p style="color:#94A3B8; font-size:14px; text-align:center; padding:20px;">
+            בחר חודש וסוג דוח כדי לראות תצוגה מקדימה
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- CUSTOMER MODAL -->
+<div id="customer-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2 id="cust-modal-title">&#x1F3CA; הוסף מנוי</h2>
+    <div class="form-group">
+      <label>מספר חיוב</label>
+      <input type="text" id="cust-id" placeholder="לדוגמה: C001">
+    </div>
+    <div class="form-group">
+      <label>שם מנוי *</label>
+      <input type="text" id="cust-name" placeholder="שם מלא">
+    </div>
+    <div class="form-group">
+      <label>טלפון</label>
+      <input type="text" id="cust-phone" placeholder="(אופציונלי)">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('customer-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveCustomer()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT MODAL -->
+<div id="product-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2 id="prod-modal-title">&#x1F366; הוסף מוצר לתפריט</h2>
+    <div class="form-group">
+      <label>שם מוצר *</label>
+      <input type="text" id="prod-name" placeholder="שם המוצר">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>מחיר (&#x20AA;) *</label>
+        <input type="number" id="prod-price" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <div class="form-group">
+        <label>כמות במלאי *</label>
+        <input type="number" id="prod-stock" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('product-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveProduct()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- INVOICE VIEW MODAL -->
+<div id="invoice-modal" class="modal-overlay hidden">
+  <div class="modal" style="width:620px;">
+    <div id="invoice-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('invoice-modal')">סגור</button>
+      <button class="btn btn-primary" onclick="doPrint()">&#x1F5A8; הדפס</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div id="confirm-modal" class="modal-overlay hidden">
+  <div class="modal" style="width:350px; text-align:center;">
+    <div style="font-size:44px; margin-bottom:14px;">&#x26A0;&#xFE0F;</div>
+    <h2 id="confirm-title" style="font-size:18px; margin-bottom:8px;"></h2>
+    <p id="confirm-msg" style="color:#64748B; font-size:14px; margin-bottom:26px;"></p>
+    <div style="display:flex; gap:10px; justify-content:center;">
+      <button class="btn btn-secondary" onclick="confirmNo()">ביטול</button>
+      <button class="btn btn-danger" id="confirm-yes-btn" onclick="confirmYes()">מחק</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" style="display:none; position:fixed; inset:0; background:#EFF9FF; z-index:999; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:22px; padding:36px; max-width:530px; width:95%; border:1px solid #BAE6FD; box-shadow:0 24px 64px rgba(8,61,92,0.18);">
+    <div style="text-align:center; font-size:52px; margin-bottom:14px;">&#x1F3CA;&#x2600;&#xFE0F;</div>
+    <h2 style="text-align:center; color:#0C4A6E; font-size:22px; font-weight:800; margin-bottom:8px;">מזנון הבריכה — הגדרת ענן</h2>
+    <p style="text-align:center; color:#0369A1; font-size:14px; margin-bottom:24px;">הדבק את קוד ה-Firebase Config כדי לחבר את הנתונים לענן</p>
+    <div style="margin-bottom:18px;">
+      <label style="font-size:13px; font-weight:700; color:#0369A1; display:block; margin-bottom:7px;">Firebase Config</label>
+      <textarea id="fb-config-input" rows="7"
+        style="width:100%; padding:12px; border:1.5px solid #BAE6FD; border-radius:10px; font-size:12px; font-family:monospace; direction:ltr; background:#F0F9FF; color:#0C4A6E; resize:vertical;"
+        placeholder='{"apiKey":"AIza...","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}'></textarea>
+    </div>
+    <button onclick="applyFirebaseConfig()"
+      style="width:100%; padding:14px; background:linear-gradient(135deg,#0EA5E9,#0284C7); color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit;">
+      &#x1F680; התחבר לענן
+    </button>
+    <div id="setup-error" style="display:none; margin-top:14px; padding:10px 14px; background:#FEE2E2; color:#B91C1C; border-radius:8px; font-size:13px;"></div>
+    <details style="margin-top:20px;">
+      <summary style="cursor:pointer; font-size:13px; color:#0369A1; font-weight:600;">&#x2753; איך מקבלים Firebase Config?</summary>
+      <ol style="margin-top:12px; padding-right:18px; font-size:13px; color:#0C4A6E; line-height:2;">
+        <li>כנס ל-<strong>firebase.google.com</strong> והתחבר עם חשבון Google</li>
+        <li>לחץ <strong>Add project</strong> ← תן שם ← המשך</li>
+        <li>בתפריט השמאלי ← &#x2699;&#xFE0F; <strong>Project settings</strong></li>
+        <li>תחת <strong>Your apps</strong> ← לחץ &lt;/&gt; (Web) ← Register app</li>
+        <li>העתק את אובייקט ה-<strong>firebaseConfig</strong> והדבק למעלה</li>
+        <li>חזור לפאנל ← <strong>Build → Firestore Database</strong> ← Create database ← בחר <strong>Start in test mode</strong></li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay" class="hidden" style="position:fixed; inset:0; background:rgba(8,61,92,0.35); z-index:500; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(2px);">
+  <div style="background:#fff; border-radius:16px; padding:28px 40px; text-align:center; border:1px solid #BAE6FD; box-shadow:0 12px 40px rgba(8,61,92,0.2);">
+    <div style="width:40px; height:40px; border:4px solid #BAE6FD; border-top-color:#0EA5E9; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 14px;"></div>
+    <p style="color:#0C4A6E; font-weight:600; font-size:14px;" id="loading-msg">שומר נתונים...</p>
+  </div>
+</div>
+
+<script>
+// ─── FIREBASE ────────────────────────────────────────────────
+let fdb = null;
+
+function fbCfgGet() {
+  try { return JSON.parse(localStorage.getItem('billing_fb_cfg') || 'null'); } catch(e) { return null; }
+}
+function fbCfgSave(cfg) { localStorage.setItem('billing_fb_cfg', JSON.stringify(cfg)); }
+
+async function fbInit() {
+  const cfg = fbCfgGet();
+  if (!cfg?.apiKey) return false;
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    fdb = firebase.firestore();
+    try { await fdb.enablePersistence({ synchronizeTabs: true }); } catch(e) {}
+    return true;
+  } catch(e) { console.error('Firebase init:', e); return false; }
+}
+
+function fbSet(col, id, data) { return fdb.collection(col).doc(String(id)).set(data); }
+function fbDel(col, id)       { return fdb.collection(col).doc(String(id)).delete(); }
+async function fbBatch(ops) {
+  const b = fdb.batch();
+  for (const op of ops) {
+    const r = fdb.collection(op.col).doc(String(op.id));
+    op.type === 'del' ? b.delete(r) : b.set(r, op.data);
+  }
+  return b.commit();
+}
+
+// ─── DATA ────────────────────────────────────────────────────
+const DB = { customers: [], products: [], invoices: [] };
+let _editCustId = null, _editProdId = null, _cart = [], _confirmCb = null, _printInv = null;
+
+function showLoading(on, msg = 'שומר נתונים...') {
+  document.getElementById('loading-overlay').classList.toggle('hidden', !on);
+  document.getElementById('loading-msg').textContent = msg;
+}
+
+async function dbLoad() {
+  showLoading(true, 'טוען נתונים...');
+  try {
+    const [c, p, i] = await Promise.all([
+      fdb.collection('customers').get(),
+      fdb.collection('products').get(),
+      fdb.collection('invoices').get()
+    ]);
+    DB.customers = c.docs.map(d => d.data());
+    DB.products  = p.docs.map(d => d.data());
+    DB.invoices  = i.docs.map(d => d.data());
+  } finally { showLoading(false); }
+}
+
+// ─── UTILITIES ───────────────────────────────────────────────
+function genCustId() {
+  const ids = new Set(DB.customers.map(c => c.id));
+  let n = 1;
+  while (ids.has('C' + String(n).padStart(3,'0'))) n++;
+  return 'C' + String(n).padStart(3,'0');
+}
+function genProdId() {
+  const ids = new Set(DB.products.map(p => p.id));
+  let n = 1;
+  while (ids.has('P' + String(n).padStart(3,'0'))) n++;
+  return 'P' + String(n).padStart(3,'0');
+}
+function genInvNum() {
+  if (!DB.invoices.length) return 'INV001';
+  const max = Math.max(...DB.invoices.map(i => parseInt(i.num.replace('INV','')) || 0));
+  return 'INV' + String(max + 1).padStart(3,'0');
+}
+function fmt(n) {
+  return '&#x20AA;' + parseFloat(n || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+function today() { return new Date().toISOString().split('T')[0]; }
+function monthStr(ym) {
+  const names = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  const [y, m] = ym.split('-');
+  return names[+m - 1] + ' ' + y;
+}
+function allMonths() {
+  return [...new Set(DB.invoices.map(i => i.date.substring(0,7)))].sort().reverse();
+}
+
+// ─── NAVIGATION ──────────────────────────────────────────────
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav a').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  document.getElementById('nav-' + p).classList.add('active');
+  ({
+    dashboard: renderDashboard,
+    customers: renderCustomers,
+    products: renderProducts,
+    'new-invoice': initNewInvoice,
+    invoices: () => { populateInvoiceFilters(); renderInvoices(); },
+    export: initExport
+  })[p]?.();
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────
+function renderDashboard() {
+  const ym = today().substring(0,7);
+  document.getElementById('dashboard-date').textContent = fmtDate(today());
+
+  const thisMonth = DB.invoices.filter(i => i.date.startsWith(ym));
+  const revenue = thisMonth.reduce((s, i) => s + i.total, 0);
+  const lowStock = DB.products.filter(p => p.stock <= 5 && p.stock > 0).length;
+  const outStock = DB.products.filter(p => p.stock === 0).length;
+
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-icon">&#x1F3CA;</div><div class="stat-label">מנויים רשומים</div><div class="stat-value">${DB.customers.length}</div></div>
+    <div class="stat-card"><div class="stat-icon">&#x1F366;</div><div class="stat-label">פריטים בתפריט</div><div class="stat-value">${DB.products.length}</div>${outStock ? `<div class="stat-sub" style="color:#B91C1C;">${outStock} אזל מהמלאי</div>` : ''}</div>
+    <div class="stat-card"><div class="stat-icon">&#x1F9FE;</div><div class="stat-label">מכירות החודש</div><div class="stat-value">${thisMonth.length}</div><div class="stat-sub">${monthStr(ym)}</div></div>
+    <div class="stat-card"><div class="stat-icon">&#x1F4B5;</div><div class="stat-label">הכנסות החודש</div><div class="stat-value" style="font-size:20px;">${fmt(revenue)}</div><div class="stat-sub">${monthStr(ym)}</div></div>
+  `;
+
+  const recent = [...DB.invoices].sort((a,b) => b.num.localeCompare(a.num)).slice(0,5);
+  document.getElementById('recent-tbody').innerHTML = recent.length
+    ? recent.map(inv => `
+        <tr>
+          <td><span class="badge badge-blue">${inv.num}</span></td>
+          <td>${fmtDate(inv.date)}</td>
+          <td>${inv.customerName}</td>
+          <td>${fmt(inv.total)}</td>
+          <td><button class="btn btn-sm btn-outline" onclick="openInvoiceView('${inv.num}')">&#x1F441; צפה</button></td>
+        </tr>`)
+      .join('')
+    : '<tr><td colspan="5" class="empty-state"><div class="empty-icon">&#x1F3CA;</div><p>אין מכירות עדיין — קדימה לעבודה! &#x2600;&#xFE0F;</p></td></tr>';
+}
+
+// ─── CUSTOMERS ───────────────────────────────────────────────
+function renderCustomers() {
+  const q = (document.getElementById('customer-search')?.value || '').toLowerCase();
+  const list = DB.customers.filter(c =>
+    c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q) || (c.phone||'').includes(q)
+  );
+  const tbody = document.getElementById('customers-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><p>אין לקוחות להצגה</p></td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(c => {
+    const invs = DB.invoices.filter(i => i.customerId === c.id);
+    const total = invs.reduce((s,i) => s + i.total, 0);
+    return `<tr>
+      <td><span class="badge badge-blue">${c.id}</span></td>
+      <td><strong>${c.name}</strong></td>
+      <td style="color:#64748B;">${c.phone || '—'}</td>
+      <td>${invs.length}</td>
+      <td>${fmt(total)}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-secondary" onclick="openCustomerModal('${c.id}')">&#x270F;&#xFE0F; ערוך</button>
+        <button class="btn btn-sm btn-danger" style="margin-right:6px;" onclick="deleteCustomerById('${c.id}')">&#x1F5D1;&#xFE0F;</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openCustomerModal(id = null) {
+  _editCustId = id;
+  if (id) {
+    const c = DB.customers.find(x => x.id === id);
+    document.getElementById('cust-modal-title').textContent = '✏️ ערוך מנוי';
+    document.getElementById('cust-id').value = c.id; document.getElementById('cust-id').disabled = true;
+    document.getElementById('cust-name').value = c.name;
+    document.getElementById('cust-phone').value = c.phone || '';
+  } else {
+    document.getElementById('cust-modal-title').textContent = '🏊 הוסף מנוי';
+    document.getElementById('cust-id').value = genCustId(); document.getElementById('cust-id').disabled = false;
+    document.getElementById('cust-name').value = '';
+    document.getElementById('cust-phone').value = '';
+  }
+  document.getElementById('customer-modal').classList.remove('hidden');
+}
+
+async function saveCustomer() {
+  const id    = document.getElementById('cust-id').value.trim();
+  const name  = document.getElementById('cust-name').value.trim();
+  const phone = document.getElementById('cust-phone').value.trim();
+  if (!id || !name) { alert('יש למלא מספר חיוב ושם מנוי'); return; }
+  showLoading(true);
+  try {
+    const data = { id, name, phone };
+    if (_editCustId) {
+      const idx = DB.customers.findIndex(c => c.id === _editCustId);
+      DB.customers[idx] = data;
+      const batch = fdb.batch();
+      batch.set(fdb.collection('customers').doc(id), data);
+      DB.invoices.forEach(inv => {
+        if (inv.customerId === _editCustId) {
+          inv.customerName = name;
+          batch.set(fdb.collection('invoices').doc(inv.num), inv);
+        }
+      });
+      await batch.commit();
+    } else {
+      if (DB.customers.find(c => c.id === id)) { alert('מספר חיוב זה כבר קיים'); return; }
+      DB.customers.push(data);
+      await fbSet('customers', id, data);
+    }
+    closeModal('customer-modal'); renderCustomers();
+  } catch(e) { alert('שגיאה: ' + e.message); }
+  finally { showLoading(false); }
+}
+
+function deleteCustomerById(id) {
+  const c = DB.customers.find(x => x.id === id);
+  askDelete('מנוי', c.name, async () => {
+    await fbDel('customers', id);
+    DB.customers = DB.customers.filter(x => x.id !== id);
+    renderCustomers();
+  });
+}
+
+// ─── PRODUCTS ────────────────────────────────────────────────
+function renderProducts() {
+  const q = (document.getElementById('product-search')?.value || '').toLowerCase();
+  const list = DB.products.filter(p => p.name.toLowerCase().includes(q));
+  const tbody = document.getElementById('products-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><p>אין מוצרים להצגה</p></td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(p => {
+    const badge = p.stock === 0
+      ? `<span class="badge badge-red">אזל המלאי</span>`
+      : p.stock <= 5
+        ? `<span class="badge badge-yellow">${p.stock} יח'</span>`
+        : `<span class="badge badge-green">${p.stock} יח'</span>`;
+    return `<tr>
+      <td><strong>${p.name}</strong></td>
+      <td>${fmt(p.price)}</td>
+      <td>${badge}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-secondary" onclick="openProductModal('${p.id}')">&#x270F;&#xFE0F; ערוך</button>
+        <button class="btn btn-sm btn-danger" style="margin-right:6px;" onclick="deleteProductById('${p.id}')">&#x1F5D1;&#xFE0F;</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openProductModal(id = null) {
+  _editProdId = id;
+  if (id) {
+    const p = DB.products.find(x => x.id === id);
+    document.getElementById('prod-modal-title').textContent = '✏️ ערוך מוצר';
+    document.getElementById('prod-name').value = p.name;
+    document.getElementById('prod-price').value = p.price;
+    document.getElementById('prod-stock').value = p.stock;
+  } else {
+    document.getElementById('prod-modal-title').textContent = '🍦 הוסף לתפריט';
+    document.getElementById('prod-name').value = '';
+    document.getElementById('prod-price').value = '';
+    document.getElementById('prod-stock').value = '';
+  }
+  document.getElementById('product-modal').classList.remove('hidden');
+}
+
+async function saveProduct() {
+  const name  = document.getElementById('prod-name').value.trim();
+  const price = parseFloat(document.getElementById('prod-price').value);
+  const stock = parseInt(document.getElementById('prod-stock').value);
+  if (!name || isNaN(price) || isNaN(stock)) { alert('יש למלא את כל השדות'); return; }
+  if (price < 0 || stock < 0) { alert('מחיר ומלאי חייבים להיות אפס ומעלה'); return; }
+  showLoading(true);
+  try {
+    if (_editProdId) {
+      const p = DB.products.find(x => x.id === _editProdId);
+      p.name = name; p.price = price; p.stock = stock;
+      await fbSet('products', _editProdId, p);
+    } else {
+      const id = genProdId();
+      const p = { id, name, price, stock };
+      DB.products.push(p);
+      await fbSet('products', id, p);
+    }
+    closeModal('product-modal'); renderProducts();
+  } catch(e) { alert('שגיאה: ' + e.message); }
+  finally { showLoading(false); }
+}
+
+function deleteProductById(id) {
+  const p = DB.products.find(x => x.id === id);
+  askDelete('מוצר', p.name, async () => {
+    await fbDel('products', id);
+    DB.products = DB.products.filter(x => x.id !== id);
+    renderProducts();
+  });
+}
+
+// ─── NEW INVOICE ─────────────────────────────────────────────
+function initNewInvoice() {
+  _cart = [];
+  const sel = document.getElementById('inv-customer');
+  sel.innerHTML = '<option value="">-- בחר לקוח --</option>' +
+    DB.customers.map(c => `<option value="${c.id}">${c.name} (${c.id})</option>`).join('');
+  document.getElementById('inv-date').value = today();
+  document.getElementById('inv-customer-badge').style.display = 'none';
+  renderPickerProducts();
+  renderCart();
+}
+
+function onCustomerChange() {
+  const id = document.getElementById('inv-customer').value;
+  const badge = document.getElementById('inv-customer-badge');
+  if (!id) { badge.style.display = 'none'; return; }
+  const c = DB.customers.find(x => x.id === id);
+  badge.innerHTML = `<strong>${c.name}</strong> &nbsp;·&nbsp; מזהה: ${c.id}${c.phone ? ' &nbsp;·&nbsp; ' + c.phone : ''}`;
+  badge.style.display = 'block';
+}
+
+function renderPickerProducts() {
+  const q = (document.getElementById('inv-product-search')?.value || '').toLowerCase();
+  const list = DB.products.filter(p => p.name.toLowerCase().includes(q));
+  const el = document.getElementById('picker-list');
+  if (!list.length) { el.innerHTML = '<div class="empty-state"><p>אין מוצרים</p></div>'; return; }
+  el.innerHTML = list.map(p => {
+    const inCart = _cart.find(c => c.pid === p.id);
+    const noStock = p.stock === 0;
+    return `<div class="product-list-item" style="${noStock ? 'opacity:0.5;' : ''}">
+      <div>
+        <div class="pname">${p.name}</div>
+        <div class="pdetails">${fmt(p.price)} &nbsp;·&nbsp; מלאי: ${p.stock} יח'</div>
+      </div>
+      <button class="btn btn-sm ${inCart ? 'btn-success' : 'btn-primary'}"
+        ${noStock ? 'disabled' : ''}
+        onclick="cartAdd('${p.id}')">
+        ${inCart ? '&#x2713; נוסף' : '+ הוסף'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function cartAdd(pid) {
+  const p = DB.products.find(x => x.id === pid);
+  if (!p || p.stock === 0) return;
+  const ex = _cart.find(c => c.pid === pid);
+  if (ex) ex.qty = Math.min(ex.qty + 1, p.stock);
+  else _cart.push({ pid, name: p.name, price: p.price, qty: 1 });
+  renderCart(); renderPickerProducts();
+}
+function cartQty(pid, v) {
+  const p = DB.products.find(x => x.id === pid);
+  const item = _cart.find(c => c.pid === pid);
+  if (!item) return;
+  item.qty = Math.max(1, Math.min(parseInt(v) || 1, p.stock));
+  renderCart();
+}
+function cartRemove(pid) {
+  _cart = _cart.filter(c => c.pid !== pid);
+  renderCart(); renderPickerProducts();
+}
+
+function renderCart() {
+  const list = document.getElementById('cart-items-list');
+  const empty = document.getElementById('cart-empty-msg');
+  const totRow = document.getElementById('cart-total-row');
+  if (!_cart.length) {
+    list.innerHTML = ''; empty.style.display = 'block'; totRow.style.display = 'none'; return;
+  }
+  empty.style.display = 'none'; totRow.style.display = 'flex';
+  list.innerHTML = _cart.map(item => `
+    <div class="cart-item">
+      <span class="cname">${item.name}</span>
+      <input type="number" class="cqty" value="${item.qty}" min="1"
+        onchange="cartQty('${item.pid}', this.value)" oninput="cartQty('${item.pid}', this.value)">
+      <span class="cprice">${fmt(item.price * item.qty)}</span>
+      <button class="btn btn-sm btn-danger" onclick="cartRemove('${item.pid}')">&#x2715;</button>
+    </div>`).join('');
+  const total = _cart.reduce((s, i) => s + i.price * i.qty, 0);
+  document.getElementById('cart-total-val').innerHTML = fmt(total);
+}
+
+async function saveInvoice() {
+  const custId = document.getElementById('inv-customer').value;
+  const date   = document.getElementById('inv-date').value;
+  if (!custId) { alert('יש לבחור מנוי'); return; }
+  if (!date)   { alert('יש לבחור תאריך'); return; }
+  if (!_cart.length) { alert('יש להוסיף לפחות מוצר אחד'); return; }
+
+  const cust  = DB.customers.find(c => c.id === custId);
+  const items = _cart.map(i => ({ pid: i.pid, name: i.name, price: i.price, qty: i.qty }));
+  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const inv   = { num: genInvNum(), customerId: custId, customerName: cust.name, date, items, total };
+
+  // Deduct stock in memory
+  items.forEach(item => {
+    const p = DB.products.find(x => x.id === item.pid);
+    if (p) p.stock = Math.max(0, p.stock - item.qty);
+  });
+
+  const ops = items.map(item => {
+    const p = DB.products.find(x => x.id === item.pid);
+    return p ? { type: 'set', col: 'products', id: p.id, data: { ...p } } : null;
+  }).filter(Boolean);
+  ops.push({ type: 'set', col: 'invoices', id: inv.num, data: inv });
+
+  showLoading(true);
+  try {
+    await fbBatch(ops);
+    DB.invoices.push(inv);
+    _cart = [];
+    alert('🏖️ חשבון ' + inv.num + ' נסגר בהצלחה!');
+    showPage('invoices');
+  } catch(e) {
+    // Revert stock on error
+    items.forEach(item => {
+      const p = DB.products.find(x => x.id === item.pid);
+      if (p) p.stock += item.qty;
+    });
+    alert('שגיאה בשמירה: ' + e.message);
+  } finally { showLoading(false); }
+}
+
+function previewPrint() {
+  const custId = document.getElementById('inv-customer').value;
+  const date   = document.getElementById('inv-date').value;
+  if (!custId || !_cart.length) { alert('יש לבחור לקוח ולהוסיף מוצרים לפני הדפסה'); return; }
+  const cust = DB.customers.find(c => c.id === custId);
+  const total = _cart.reduce((s, i) => s + i.price * i.qty, 0);
+  printHTML(buildInvoiceHTML({
+    num: 'טיוטה', customerName: cust.name, customerId: custId,
+    phone: cust.phone, date, items: _cart.map(i=>({...i})), total
+  }));
+}
+
+// ─── INVOICES LIST ───────────────────────────────────────────
+function populateInvoiceFilters() {
+  const months = allMonths();
+  const mSel = document.getElementById('filter-month');
+  const prevM = mSel.value;
+  mSel.innerHTML = '<option value="">כל החודשים</option>' +
+    months.map(m => `<option value="${m}" ${m===prevM?'selected':''}>${monthStr(m)}</option>`).join('');
+  const cSel = document.getElementById('filter-customer');
+  const prevC = cSel.value;
+  cSel.innerHTML = '<option value="">כל המנויים</option>' +
+    DB.customers.map(c => `<option value="${c.id}" ${c.id===prevC?'selected':''}>${c.name}</option>`).join('');
+}
+
+function renderInvoices() {
+  const fm = document.getElementById('filter-month')?.value || '';
+  const fc = document.getElementById('filter-customer')?.value || '';
+  const list = DB.invoices
+    .filter(i => (!fm || i.date.startsWith(fm)) && (!fc || i.customerId === fc))
+    .sort((a,b) => b.num.localeCompare(a.num));
+
+  const sumEl = document.getElementById('filter-summary');
+  if (list.length) {
+    const t = list.reduce((s,i) => s+i.total, 0);
+    sumEl.innerHTML = `${list.length} חשבונות &nbsp;·&nbsp; ${fmt(t)}`;
+  } else { sumEl.textContent = ''; }
+
+  const tbody = document.getElementById('invoices-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><p>אין חשבונות</p></td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(inv => `
+    <tr>
+      <td><span class="badge badge-blue">${inv.num}</span></td>
+      <td>${fmtDate(inv.date)}</td>
+      <td>${inv.customerName}</td>
+      <td><span class="badge badge-green">${inv.items.length} פריטים</span></td>
+      <td><strong>${fmt(inv.total)}</strong></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-outline" onclick="openInvoiceView('${inv.num}')">&#x1F441; צפה</button>
+        <button class="btn btn-sm btn-danger" style="margin-right:6px;" onclick="askDelete('חשבון', '${inv.num}', ()=>deleteInvoice('${inv.num}'))">&#x1F5D1;&#xFE0F;</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function deleteInvoice(num) {
+  const inv = DB.invoices.find(i => i.num === num);
+  if (!inv) return;
+  const ops = [];
+  inv.items.forEach(item => {
+    const p = DB.products.find(x => x.id === item.pid);
+    if (p) { p.stock += item.qty; ops.push({ type: 'set', col: 'products', id: p.id, data: { ...p } }); }
+  });
+  ops.push({ type: 'del', col: 'invoices', id: num });
+  await fbBatch(ops);
+  DB.invoices = DB.invoices.filter(i => i.num !== num);
+  renderInvoices();
+}
+
+// ─── INVOICE VIEW ────────────────────────────────────────────
+function openInvoiceView(num) {
+  const inv = DB.invoices.find(i => i.num === num);
+  if (!inv) return;
+  const cust = DB.customers.find(c => c.id === inv.customerId);
+  _printInv = { ...inv, phone: cust?.phone || '' };
+  document.getElementById('invoice-modal-body').innerHTML = buildInvoiceHTML(_printInv);
+  document.getElementById('invoice-modal').classList.remove('hidden');
+}
+
+function buildInvoiceHTML(inv) {
+  const rows = inv.items.map(item => `
+    <tr>
+      <td style="padding:10px 8px; border-bottom:1px solid #F1F5F9;">${item.name}</td>
+      <td style="padding:10px 8px; text-align:center; border-bottom:1px solid #F1F5F9;">${item.qty}</td>
+      <td style="padding:10px 8px; text-align:center; border-bottom:1px solid #F1F5F9;">${fmt(item.price)}</td>
+      <td style="padding:10px 8px; text-align:left; font-weight:600; border-bottom:1px solid #F1F5F9;">${fmt(item.price * item.qty)}</td>
+    </tr>`).join('');
+
+  return `
+    <div style="border-bottom:2px solid #0EA5E9; padding-bottom:18px; margin-bottom:18px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div style="font-size:13px; color:#0369A1; margin-bottom:2px;">&#x1F3CA; מזנון הבריכה</div>
+          <div style="font-size:26px; font-weight:800; color:#0284C7;">${inv.num}</div>
+          <div style="font-size:13px; color:#0369A1; margin-top:4px;">תאריך: ${fmtDate(inv.date)}</div>
+        </div>
+        <div style="text-align:left;">
+          <div style="font-weight:700; font-size:16px; color:#0C4A6E;">${inv.customerName}</div>
+          <div style="font-size:13px; color:#0369A1;">מס' חיוב: ${inv.customerId}</div>
+          ${inv.phone ? `<div style="font-size:13px; color:#0369A1;">${inv.phone}</div>` : ''}
+        </div>
+      </div>
+    </div>
+    <table style="width:100%; border-collapse:collapse; margin-bottom:18px;">
+      <thead>
+        <tr style="background:#F0F9FF;">
+          <th style="padding:9px 8px; text-align:right; font-size:13px; color:#0369A1; font-weight:700;">מוצר</th>
+          <th style="padding:9px 8px; text-align:center; font-size:13px; color:#0369A1; font-weight:700;">כמות</th>
+          <th style="padding:9px 8px; text-align:center; font-size:13px; color:#0369A1; font-weight:700;">מחיר</th>
+          <th style="padding:9px 8px; text-align:left; font-size:13px; color:#0369A1; font-weight:700;">סכום</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="display:flex; justify-content:space-between; align-items:center; background:#E0F2FE; padding:16px 18px; border-radius:10px; border:1px solid #7DD3FC;">
+      <span style="font-weight:700; font-size:16px; color:#0C4A6E;">סה"כ לתשלום</span>
+      <span style="font-weight:800; font-size:24px; color:#0284C7;">${fmt(inv.total)}</span>
+    </div>`;
+}
+
+function doPrint() {
+  if (!_printInv) return;
+  printHTML(buildInvoiceHTML(_printInv));
+}
+
+function printHTML(content) {
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="he"><head>
+    <meta charset="UTF-8"><title>חשבון</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:40px;direction:rtl;color:#1E293B;}
+      table{width:100%;border-collapse:collapse;}
+      th,td{padding:10px;border:1px solid #E2E8F0;}
+      th{background:#F8FAFC;}
+      @media print{body{padding:20px;}}
+    </style></head>
+    <body>${content}<script>setTimeout(()=>window.print(),400);<\/script></body></html>`);
+  w.document.close();
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────
+function initExport() {
+  const months = allMonths();
+  const ym = today().substring(0,7);
+  const sel = document.getElementById('exp-month');
+  sel.innerHTML = '<option value="">כל הזמן</option>' +
+    months.map(m => `<option value="${m}" ${m===ym?'selected':''}>${monthStr(m)}</option>`).join('');
+  updateExpCount();
+  sel.addEventListener('change', updateExpCount);
+  document.getElementById('exp-type').addEventListener('change', updateExpCount);
+}
+
+function updateExpCount() {
+  const fm = document.getElementById('exp-month').value;
+  const list = DB.invoices.filter(i => !fm || i.date.startsWith(fm));
+  const total = list.reduce((s,i) => s+i.total, 0);
+  document.getElementById('exp-count').innerHTML =
+    list.length ? `${list.length} חשבונות &nbsp;·&nbsp; ${fmt(total)}` : 'אין נתונים לתקופה זו';
+
+  // Preview table
+  const prev = document.getElementById('exp-preview');
+  if (!list.length) { prev.innerHTML = '<p style="color:#94A3B8;font-size:14px;text-align:center;padding:20px;">אין נתונים</p>'; return; }
+  const type = document.getElementById('exp-type').value;
+  if (type === 'detail') {
+    const rows = list.slice(0,5).flatMap(inv =>
+      inv.items.map(item => `<tr>
+        <td>${inv.num}</td><td>${fmtDate(inv.date)}</td>
+        <td>${inv.customerName}</td><td>${item.name}</td>
+        <td style="text-align:left;">${item.qty}</td>
+        <td style="text-align:left;">${fmt(item.price * item.qty)}</td>
+      </tr>`)
+    );
+    prev.innerHTML = `<p style="font-size:13px;color:#64748B;margin-bottom:12px;">תצוגה מקדימה (${Math.min(5,list.length)} חשבונות ראשונים):</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>חשבון</th><th>תאריך</th><th>לקוח</th><th>מוצר</th><th>כמות</th><th>סכום</th></tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table></div>`;
+  } else {
+    const byC = {};
+    list.forEach(inv => {
+      if (!byC[inv.customerId]) byC[inv.customerId] = { name: inv.customerName, invs: 0, qty: 0, total: 0 };
+      byC[inv.customerId].invs++;
+      byC[inv.customerId].qty += inv.items.reduce((s,i)=>s+i.qty,0);
+      byC[inv.customerId].total += inv.total;
+    });
+    const rows = Object.entries(byC).map(([id,c]) =>
+      `<tr><td>${id}</td><td>${c.name}</td><td>${c.invs}</td><td>${c.qty}</td><td>${fmt(c.total)}</td></tr>`
+    );
+    prev.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>מזהה</th><th>לקוח</th><th>חשבונות</th><th>פריטים</th><th>סה"כ</th></tr></thead>
+      <tbody>${rows.join('')}</tbody>
+    </table></div>`;
+  }
+}
+
+function runExport() {
+  const fm   = document.getElementById('exp-month').value;
+  const type = document.getElementById('exp-type').value;
+  const list = DB.invoices.filter(i => !fm || i.date.startsWith(fm)).sort((a,b)=>a.num.localeCompare(b.num));
+  if (!list.length) { alert('אין נתונים לייצוא'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  if (type === 'detail') {
+    const data = [["מס' חשבון","תאריך","מזהה לקוח","שם לקוח","מוצר","מחיר יחידה","כמות","סה\"כ"]];
+    list.forEach(inv => inv.items.forEach(item =>
+      data.push([inv.num, fmtDate(inv.date), inv.customerId, inv.customerName, item.name, item.price, item.qty, item.price * item.qty])
+    ));
+    const grandTotal = list.reduce((s,i)=>s+i.total,0);
+    data.push([]);
+    data.push(['','','','','','','סה"כ:', grandTotal]);
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [12,12,12,20,22,14,8,14].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws, 'רכישות מפורט');
+  } else {
+    const byC = {};
+    list.forEach(inv => {
+      if (!byC[inv.customerId]) byC[inv.customerId] = { id: inv.customerId, name: inv.customerName, invs: 0, qty: 0, total: 0 };
+      byC[inv.customerId].invs++;
+      byC[inv.customerId].qty += inv.items.reduce((s,i)=>s+i.qty,0);
+      byC[inv.customerId].total += inv.total;
+    });
+    const data = [["מזהה לקוח","שם לקוח","מס' חשבונות","פריטים שנרכשו","סה\"כ"]];
+    Object.values(byC).sort((a,b)=>b.total-a.total).forEach(c =>
+      data.push([c.id, c.name, c.invs, c.qty, c.total])
+    );
+    data.push([]);
+    const grand = Object.values(byC).reduce((s,c)=>s+c.total,0);
+    data.push(['','סה"כ','','',grand]);
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [12,22,16,18,14].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws, 'סיכום לקוחות');
+  }
+
+  const filename = fm ? `חשבונות_${monthStr(fm)}.xlsx` : 'חשבונות_כל_הזמן.xlsx';
+  XLSX.writeFile(wb, filename);
+}
+
+// ─── MODALS / CONFIRM ────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function askDelete(type, name, cb) {
+  _confirmCb = cb;
+  document.getElementById('confirm-title').textContent = `מחק ${type}?`;
+  document.getElementById('confirm-msg').textContent = `"${name}" יימחק לצמיתות ולא ניתן יהיה לשחזרו.`;
+  document.getElementById('confirm-modal').classList.remove('hidden');
+}
+async function confirmYes() {
+  closeModal('confirm-modal');
+  if (_confirmCb) {
+    showLoading(true);
+    try { await _confirmCb(); }
+    catch(e) { alert('שגיאה: ' + e.message); }
+    finally { showLoading(false); }
+  }
+  _confirmCb = null;
+}
+function confirmNo() { closeModal('confirm-modal'); _confirmCb = null; }
+
+// Close overlays on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(el =>
+  el.addEventListener('click', e => { if (e.target === el) el.classList.add('hidden'); })
+);
+
+// ─── BOOT ────────────────────────────────────────────────────
+function importCustomersExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  if (typeof XLSX === 'undefined') {
+    alert('ספריית Excel לא נטענה עדיין, נסה שוב בעוד שנייה');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      if (!rows.length) { showImportResult('error', 'הקובץ ריק'); return; }
+
+      // Detect if first row is a header (contains text, not a number in the ID column)
+      let startRow = 0;
+      const firstId = String(rows[0][1] || rows[0][0] || '').trim();
+      if (isNaN(firstId) && (String(rows[0][0]).includes('שם') || String(rows[0][1]).includes('מספר') || String(rows[0][0]).toLowerCase().includes('name'))) {
+        startRow = 1;
+      }
+
+      let added = 0, skipped = 0, errors = [], newBatch = [];
+      const existingIds = new Set(DB.customers.map(c => String(c.id)));
+
+      for (let i = startRow; i < rows.length; i++) {
+        const row = rows[i];
+        const col0 = String(row[0] || '').trim();
+        const col1 = String(row[1] || '').trim();
+        if (!col0 && !col1) continue; // skip empty rows
+
+        // Figure out which column is name and which is ID
+        // Rule: if col1 looks numeric or like an ID → col0=name, col1=id
+        //       if col0 looks numeric → col0=id, col1=name
+        let name, id;
+        if (!isNaN(col0) && col0 !== '') {
+          id = col0; name = col1;
+        } else {
+          name = col0; id = col1 || String(i + 1 - startRow);
+        }
+
+        if (!name) { errors.push(`שורה ${i+1}: חסר שם`); continue; }
+        if (!id)   { errors.push(`שורה ${i+1}: חסר מספר`); continue; }
+
+        if (existingIds.has(id)) { skipped++; continue; }
+
+        const newC = { id, name, phone: '' };
+        DB.customers.push(newC);
+        newBatch.push(newC);
+        existingIds.add(id);
+        added++;
+      }
+
+      // Save new customers to Firebase
+      if (newBatch.length) {
+        showLoading(true);
+        try {
+          const batch = fdb.batch();
+          newBatch.forEach(c => batch.set(fdb.collection('customers').doc(c.id), c));
+          await batch.commit();
+        } catch(err) {
+          showImportResult('error', 'שגיאה בשמירה לענן: ' + err.message);
+          showLoading(false);
+          return;
+        } finally { showLoading(false); }
+      }
+      renderCustomers();
+
+      let msg = `יובאו ${added} מנויים בהצלחה`;
+      if (skipped)        msg += ` · ${skipped} כבר קיימים (דולגו)`;
+      if (errors.length)  msg += ` · ${errors.length} שגיאות`;
+      showImportResult(added > 0 ? 'success' : 'error', msg);
+    } catch(err) {
+      showImportResult('error', 'שגיאה בקריאת הקובץ — ודא שהוא קובץ Excel תקני');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showImportResult(type, msg) {
+  const el = document.getElementById('import-result');
+  el.style.display = 'block';
+  el.style.cssText = `display:block; padding:12px 16px; border-radius:8px; font-size:14px; margin-bottom:14px;
+    background:${type==='success'?'#ECFDF5':'#FEF2F2'};
+    color:${type==='success'?'#065F46':'#991B1B'};
+    border:1px solid ${type==='success'?'#A7F3D0':'#FECACA'};`;
+  el.textContent = (type === 'success' ? '✅ ' : '❌ ') + msg;
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+async function applyFirebaseConfig() {
+  const raw = document.getElementById('fb-config-input').value.trim();
+  const errEl = document.getElementById('setup-error');
+  errEl.style.display = 'none';
+  let cfg;
+  try {
+    const cleaned = raw.replace(/^[\s\S]*?(\{)/, '$1').replace(/\s*;\s*$/, '');
+    cfg = JSON.parse(cleaned);
+  } catch(e) {
+    errEl.textContent = 'פורמט לא תקין — הדבק את ה-Config כפי שהוא מ-Firebase'; errEl.style.display = 'block'; return;
+  }
+  if (!cfg.apiKey || !cfg.projectId) {
+    errEl.textContent = 'Config חסר שדות (apiKey / projectId)'; errEl.style.display = 'block'; return;
+  }
+  fbCfgSave(cfg);
+  const ok = await fbInit();
+  if (!ok) {
+    errEl.textContent = 'שגיאה בחיבור ל-Firebase — בדוק שה-Config נכון ו-Firestore פעיל'; errEl.style.display = 'block'; return;
+  }
+  document.getElementById('setup-screen').style.display = 'none';
+  await dbLoad();
+  showPage('dashboard');
+}
+
+async function boot() {
+  const ok = await fbInit();
+  if (!ok) {
+    document.getElementById('setup-screen').style.display = 'flex';
+    return;
+  }
+  await dbLoad();
+  showPage('dashboard');
+}
+
+boot();
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="xlsx.min.js"></script>
+</body>
+</html>
