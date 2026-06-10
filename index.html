@@ -559,11 +559,26 @@ tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script>
 // ─── FIREBASE ────────────────────────────────────────────────
 let fdb = null;
+
+function loadFirebaseSDK() {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), 5000);
+    const s1 = document.createElement('script');
+    s1.src = 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js';
+    s1.onerror = () => { clearTimeout(timer); resolve(false); };
+    s1.onload = () => {
+      const s2 = document.createElement('script');
+      s2.src = 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js';
+      s2.onerror = () => { clearTimeout(timer); resolve(false); };
+      s2.onload  = () => { clearTimeout(timer); resolve(true); };
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s1);
+  });
+}
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyD_iu3GJPjkVU3ATCI0qonO2YA_y0RvX5c",
@@ -1390,8 +1405,13 @@ async function applyFirebaseConfig() {
 
 async function boot() {
   document.getElementById('setup-screen').style.display = 'none';
-  const ok = await fbInit();
-  if (!ok) {
+  showLoading(true, 'מתחבר...');
+  const sdkLoaded = await loadFirebaseSDK();
+  showLoading(false);
+  if (sdkLoaded) {
+    await fbInit();
+  }
+  if (!fdb) {
     const ind = document.getElementById('offline-indicator');
     if (ind) ind.style.display = 'flex';
   }
