@@ -1411,25 +1411,36 @@ async function applyFirebaseConfig() {
 }
 
 async function boot() {
-  try {
-    document.getElementById('setup-screen').style.display = 'none';
-    showLoading(true, 'מתחבר...');
-    try {
-      const sdkLoaded = await loadFirebaseSDK();
-      if (sdkLoaded) await fbInit();
-    } catch(e) { console.warn('Firebase load:', e.message); }
-    showLoading(false);
-    if (!fdb) {
-      const ind = document.getElementById('offline-indicator');
-      if (ind) ind.style.display = 'flex';
-    }
-    await dbLoad();
-  } catch(e) {
-    console.error('boot error:', e);
-    showLoading(false);
-    dbLoadLocal();
-  }
+  // Show the app immediately with any locally saved data
+  document.getElementById('setup-screen').style.display = 'none';
+  dbLoadLocal();
   showPage('dashboard');
+
+  // Connect to Firebase in the background
+  showLoading(true, 'מתחבר לענן...');
+  try {
+    const sdkLoaded = await loadFirebaseSDK();
+    if (sdkLoaded) await fbInit();
+    if (fdb) {
+      const [c, p, i] = await Promise.all([
+        fdb.collection('customers').get(),
+        fdb.collection('products').get(),
+        fdb.collection('invoices').get()
+      ]);
+      DB.customers = c.docs.map(d => d.data());
+      DB.products  = p.docs.map(d => d.data());
+      DB.invoices  = i.docs.map(d => d.data());
+      dbSave();
+      showPage('dashboard'); // refresh with cloud data
+    } else {
+      document.getElementById('offline-indicator').style.display = 'flex';
+    }
+  } catch(e) {
+    console.warn('Firebase:', e.message);
+    document.getElementById('offline-indicator').style.display = 'flex';
+  } finally {
+    showLoading(false);
+  }
 }
 
 boot();
