@@ -190,6 +190,18 @@ tr:last-child td { border-bottom: none; }
 .page { display: none; }
 .page.active { display: block; }
 
+/* ─── SALES MODE ─── */
+body.sales-mode #nav-dashboard,
+body.sales-mode #nav-customers,
+body.sales-mode #nav-products,
+body.sales-mode #nav-invoices,
+body.sales-mode #nav-export  { display: none; }
+body.sales-mode .sidebar-header p { display: none; }
+body.sales-mode #admin-footer    { display: none !important; }
+body.sales-mode #sales-footer    { display: flex !important; }
+body.admin-mode #admin-footer    { display: flex !important; }
+body.admin-mode #sales-footer    { display: none !important; }
+
 @media (max-width: 900px) {
   .sidebar { width: 58px; }
   .sidebar-header h2, .sidebar-header p, .sidebar-brand, .nav a span:not(.icon), .sidebar-footer { display: none; }
@@ -211,7 +223,7 @@ tr:last-child td { border-bottom: none; }
       <p>ניהול מכירות ולקוחות</p>
     </div>
     <nav class="nav">
-      <a onclick="showPage('dashboard')" id="nav-dashboard" class="active">
+      <a onclick="showPage('dashboard')" id="nav-dashboard">
         <span class="icon">&#x1F30A;</span><span>ראשי</span>
       </a>
       <a onclick="showPage('customers')" id="nav-customers">
@@ -230,7 +242,27 @@ tr:last-child td { border-bottom: none; }
         <span class="icon">&#x1F4CA;</span><span>ייצוא Excel</span>
       </a>
     </nav>
-    <div class="sidebar-footer">&#x1F3CA; עונת הקיץ &#x2600;&#xFE0F;</div>
+    <div class="sidebar-footer">
+      <!-- Sales mode: hidden lock button -->
+      <div id="sales-footer" style="display:none; justify-content:center;">
+        <button onclick="openPinModal()" title="כניסה לניהול"
+          style="background:none; border:none; color:rgba(255,255,255,0.2); cursor:pointer; font-size:18px; padding:6px 12px; border-radius:6px; transition:color 0.2s;"
+          onmouseover="this.style.color='rgba(255,255,255,0.6)'" onmouseout="this.style.color='rgba(255,255,255,0.2)'">
+          &#x1F512;
+        </button>
+      </div>
+      <!-- Admin mode: management buttons -->
+      <div id="admin-footer" style="display:none; flex-direction:column; gap:6px; width:100%;">
+        <button onclick="openChangePinModal()"
+          style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#7DD3FC; padding:7px; border-radius:7px; cursor:pointer; font-size:12px; width:100%;">
+          &#x1F511; שנה סיסמה
+        </button>
+        <button onclick="exitAdminMode()"
+          style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#FCA5A5; padding:7px; border-radius:7px; cursor:pointer; font-size:12px; width:100%;">
+          &#x1F512; נעל — עמדת מכירה
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Main content -->
@@ -546,6 +578,44 @@ tr:last-child td { border-bottom: none; }
   </div>
 </div>
 
+<!-- PIN MODAL -->
+<div id="pin-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:320px; text-align:center;">
+    <h2>&#x1F510; כניסה לניהול</h2>
+    <div class="form-group" style="margin-top:20px;">
+      <label>סיסמה</label>
+      <input type="password" id="pin-input" placeholder="הזן סיסמה"
+        style="text-align:center; font-size:22px; letter-spacing:6px;"
+        onkeydown="if(event.key==='Enter') submitPin()">
+    </div>
+    <div id="pin-error" style="color:#EF4444; font-size:13px; display:none; margin-bottom:8px;">&#x274C; סיסמה שגויה</div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('pin-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="submitPin()">כניסה &#x1F513;</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE PIN MODAL -->
+<div id="change-pin-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:320px; text-align:center;">
+    <h2>&#x1F511; שינוי סיסמה</h2>
+    <div class="form-group" style="margin-top:20px;">
+      <label>סיסמה נוכחית</label>
+      <input type="password" id="current-pin-input" placeholder="סיסמה נוכחית" style="text-align:center;">
+    </div>
+    <div class="form-group">
+      <label>סיסמה חדשה (לפחות 4 תווים)</label>
+      <input type="password" id="new-pin-input" placeholder="סיסמה חדשה" style="text-align:center;">
+    </div>
+    <div id="change-pin-error" style="color:#EF4444; font-size:13px; display:none; margin-bottom:8px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('change-pin-modal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveNewPin()">שמור</button>
+    </div>
+  </div>
+</div>
+
 <!-- OFFLINE INDICATOR -->
 <div id="offline-indicator" style="display:none; position:fixed; bottom:16px; left:16px; background:#F59E0B; color:#fff; padding:8px 14px; border-radius:8px; font-size:13px; z-index:200; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(0,0,0,0.2);">
   📴 מצב לא מקוון — שמירה מקומית בלבד
@@ -628,6 +698,66 @@ function dbLoadLocal() {
   try { const s = localStorage.getItem('billing_db'); if (s) Object.assign(DB, JSON.parse(s)); } catch(e) {}
 }
 
+// ─── SALES / ADMIN MODE ──────────────────────────────────────
+let adminMode = false;
+
+function getPin() { return localStorage.getItem('billing_pin') || '1234'; }
+
+function openPinModal() {
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-error').style.display = 'none';
+  document.getElementById('pin-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('pin-input').focus(), 120);
+}
+
+function submitPin() {
+  const entered = document.getElementById('pin-input').value;
+  if (entered === getPin()) {
+    closeModal('pin-modal');
+    enterAdminMode();
+  } else {
+    document.getElementById('pin-error').style.display = 'block';
+    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-input').focus();
+  }
+}
+
+function enterAdminMode() {
+  adminMode = true;
+  document.body.classList.remove('sales-mode');
+  document.body.classList.add('admin-mode');
+  showPage('dashboard');
+}
+
+function exitAdminMode() {
+  adminMode = false;
+  document.body.classList.remove('admin-mode');
+  document.body.classList.add('sales-mode');
+  showPage('new-invoice');
+}
+
+function openChangePinModal() {
+  document.getElementById('current-pin-input').value = '';
+  document.getElementById('new-pin-input').value = '';
+  document.getElementById('change-pin-error').style.display = 'none';
+  document.getElementById('change-pin-modal').classList.remove('hidden');
+}
+
+function saveNewPin() {
+  const current = document.getElementById('current-pin-input').value;
+  const next    = document.getElementById('new-pin-input').value.trim();
+  const errEl   = document.getElementById('change-pin-error');
+  if (current !== getPin()) {
+    errEl.textContent = '❌ הסיסמה הנוכחית שגויה'; errEl.style.display = 'block'; return;
+  }
+  if (next.length < 4) {
+    errEl.textContent = '❌ הסיסמה חייבת להכיל לפחות 4 תווים'; errEl.style.display = 'block'; return;
+  }
+  localStorage.setItem('billing_pin', next);
+  closeModal('change-pin-modal');
+  alert('✅ הסיסמה שונתה בהצלחה');
+}
+
 function showLoading(on, msg = 'שומר נתונים...') {
   document.getElementById('loading-overlay').classList.toggle('hidden', !on);
   document.getElementById('loading-msg').textContent = msg;
@@ -696,7 +826,9 @@ function allMonths() {
 }
 
 // ─── NAVIGATION ──────────────────────────────────────────────
+const ADMIN_PAGES = ['dashboard','customers','products','invoices','export'];
 function showPage(p) {
+  if (!adminMode && ADMIN_PAGES.includes(p)) { openPinModal(); return; }
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav a').forEach(el => el.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
@@ -1411,10 +1543,11 @@ async function applyFirebaseConfig() {
 }
 
 async function boot() {
-  // Show app immediately — no waiting, no blocking overlay
+  // Start in sales mode
+  document.body.classList.add('sales-mode');
   document.getElementById('setup-screen').style.display = 'none';
   dbLoadLocal();
-  showPage('dashboard');
+  showPage('new-invoice');
 
   // Silent background sync — never blocks the UI
   try {
