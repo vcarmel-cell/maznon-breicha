@@ -340,7 +340,7 @@ body.admin-mode #sales-footer    { display: none !important; }
         <div class="table-wrap">
           <table>
             <thead><tr>
-              <th>שם מוצר</th><th>מחיר</th><th>מלאי</th><th>פעולות</th>
+              <th style="width:56px;"></th><th>שם מוצר</th><th>מחיר</th><th>מלאי</th><th>פעולות</th>
             </tr></thead>
             <tbody id="products-tbody"></tbody>
           </table>
@@ -514,6 +514,22 @@ body.admin-mode #sales-footer    { display: none !important; }
       <div class="form-group">
         <label>כמות במלאי *</label>
         <input type="number" id="prod-stock" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>תמונת מוצר (אופציונלי)</label>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div id="prod-img-preview" style="width:82px; height:82px; border-radius:10px; border:2px dashed #BAE6FD; display:flex; align-items:center; justify-content:center; background:#F0F9FF; overflow:hidden; flex-shrink:0;">
+          <span id="prod-img-placeholder" style="font-size:28px;">&#x1F4F7;</span>
+          <img id="prod-img-thumb" src="" alt="" style="display:none; width:100%; height:100%; object-fit:cover;">
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer; justify-content:center;">
+            &#x1F4C2; בחר תמונה
+            <input type="file" id="prod-img-input" accept="image/*" style="display:none;" onchange="previewProductImage(this)">
+          </label>
+          <button id="prod-img-clear-btn" onclick="clearProductImage()" style="display:none; background:#FEF2F2; color:#EF4444; border:1px solid #FECACA; border-radius:7px; padding:6px; font-size:13px; cursor:pointer;">&#x2715; הסר תמונה</button>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1008,7 +1024,7 @@ function renderProducts() {
   const list = DB.products.filter(p => p.name.toLowerCase().includes(q));
   const tbody = document.getElementById('products-tbody');
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><p>אין מוצרים להצגה</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><p>אין מוצרים להצגה</p></td></tr>';
     return;
   }
   tbody.innerHTML = list.map(p => {
@@ -1017,7 +1033,11 @@ function renderProducts() {
       : p.stock <= 5
         ? `<span class="badge badge-yellow">${p.stock} יח'</span>`
         : `<span class="badge badge-green">${p.stock} יח'</span>`;
+    const imgCell = p.img
+      ? `<img src="${p.img}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid #BAE6FD;display:block;">`
+      : `<div style="width:44px;height:44px;border-radius:8px;border:1px dashed #CBD5E1;background:#F8FAFC;display:flex;align-items:center;justify-content:center;font-size:18px;">&#x1F4F7;</div>`;
     return `<tr>
+      <td style="padding:8px;">${imgCell}</td>
       <td><strong>${p.name}</strong></td>
       <td>${fmt(p.price)}</td>
       <td>${badge}</td>
@@ -1031,12 +1051,14 @@ function renderProducts() {
 
 function openProductModal(id = null) {
   _editProdId = id;
+  clearProductImage();
   if (id) {
     const p = DB.products.find(x => x.id === id);
     document.getElementById('prod-modal-title').textContent = '✏️ ערוך מוצר';
     document.getElementById('prod-name').value = p.name;
     document.getElementById('prod-price').value = p.price;
     document.getElementById('prod-stock').value = p.stock;
+    if (p.img) setProductImagePreview(p.img);
   } else {
     document.getElementById('prod-modal-title').textContent = '🍦 הוסף לתפריט';
     document.getElementById('prod-name').value = '';
@@ -1046,21 +1068,64 @@ function openProductModal(id = null) {
   document.getElementById('product-modal').classList.remove('hidden');
 }
 
+function compressImage(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 200;
+        const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width  * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function previewProductImage(input) {
+  if (!input.files[0]) return;
+  const b64 = await compressImage(input.files[0]);
+  setProductImagePreview(b64);
+}
+
+function setProductImagePreview(src) {
+  document.getElementById('prod-img-thumb').src = src;
+  document.getElementById('prod-img-thumb').style.display = 'block';
+  document.getElementById('prod-img-placeholder').style.display = 'none';
+  document.getElementById('prod-img-clear-btn').style.display = 'block';
+}
+
+function clearProductImage() {
+  document.getElementById('prod-img-input').value = '';
+  document.getElementById('prod-img-thumb').src = '';
+  document.getElementById('prod-img-thumb').style.display = 'none';
+  document.getElementById('prod-img-placeholder').style.display = 'block';
+  document.getElementById('prod-img-clear-btn').style.display = 'none';
+}
+
 async function saveProduct() {
   const name  = document.getElementById('prod-name').value.trim();
   const price = parseFloat(document.getElementById('prod-price').value);
   const stock = parseInt(document.getElementById('prod-stock').value);
   if (!name || isNaN(price) || isNaN(stock)) { alert('יש למלא את כל השדות'); return; }
   if (price < 0 || stock < 0) { alert('מחיר ומלאי חייבים להיות אפס ומעלה'); return; }
+  const imgSrc = document.getElementById('prod-img-thumb').src;
+  const img = imgSrc && imgSrc.startsWith('data:') ? imgSrc : '';
   showLoading(true);
   try {
     if (_editProdId) {
       const p = DB.products.find(x => x.id === _editProdId);
-      p.name = name; p.price = price; p.stock = stock;
+      p.name = name; p.price = price; p.stock = stock; p.img = img;
       await fbSet('products', _editProdId, p);
     } else {
       const id = genProdId();
-      const p = { id, name, price, stock };
+      const p = { id, name, price, stock, img };
       DB.products.push(p);
       await fbSet('products', id, p);
     }
@@ -1105,10 +1170,14 @@ function renderPickerProducts() {
   const el = document.getElementById('picker-list');
   if (!list.length) { el.innerHTML = '<div class="empty-state"><p>אין מוצרים</p></div>'; return; }
   el.innerHTML = list.map(p => {
-    const inCart = _cart.find(c => c.pid === p.id);
+    const inCart  = _cart.find(c => c.pid === p.id);
     const noStock = p.stock === 0;
-    return `<div class="product-list-item" style="${noStock ? 'opacity:0.5;' : ''}">
-      <div>
+    const imgHtml = p.img
+      ? `<img src="${p.img}" alt="" style="width:46px;height:46px;object-fit:cover;border-radius:8px;flex-shrink:0;">`
+      : `<div style="width:46px;height:46px;border-radius:8px;background:#F0F9FF;border:1px dashed #BAE6FD;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">&#x1F374;</div>`;
+    return `<div class="product-list-item" style="${noStock ? 'opacity:0.5;' : ''}display:flex;align-items:center;gap:10px;">
+      ${imgHtml}
+      <div style="flex:1;min-width:0;">
         <div class="pname">${p.name}</div>
         <div class="pdetails">${fmt(p.price)} &nbsp;·&nbsp; מלאי: ${p.stock} יח'</div>
       </div>
