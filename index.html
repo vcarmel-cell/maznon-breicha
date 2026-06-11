@@ -788,6 +788,7 @@ function saveNewPin() {
     errEl.textContent = '❌ הסיסמה חייבת להכיל לפחות 4 תווים'; errEl.style.display = 'block'; return;
   }
   localStorage.setItem('billing_pin', next);
+  if (fdb) fbSet('settings', 'config', { pin: next });
   closeModal('change-pin-modal');
   alert('✅ הסיסמה שונתה בהצלחה');
 }
@@ -802,14 +803,16 @@ async function dbLoad() {
   try {
     if (fdb) {
       try {
-        const [c, p, i] = await Promise.all([
+        const [c, p, i, s] = await Promise.all([
           fdb.collection('customers').get(),
           fdb.collection('products').get(),
-          fdb.collection('invoices').get()
+          fdb.collection('invoices').get(),
+          fdb.collection('settings').doc('config').get()
         ]);
         DB.customers = c.docs.map(d => d.data());
         DB.products  = p.docs.map(d => d.data());
         DB.invoices  = i.docs.map(d => d.data());
+        if (s.exists && s.data().pin) localStorage.setItem('billing_pin', s.data().pin);
         dbSave();
         return;
       } catch(e) {
@@ -1758,17 +1761,19 @@ async function boot() {
     await fbInit();
     if (!fdb)       { document.getElementById('offline-indicator').style.display = 'flex'; return; }
 
-    const [c, p, i] = await Promise.race([
+    const [c, p, i, s] = await Promise.race([
       Promise.all([
         fdb.collection('customers').get(),
         fdb.collection('products').get(),
-        fdb.collection('invoices').get()
+        fdb.collection('invoices').get(),
+        fdb.collection('settings').doc('config').get()
       ]),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Firestore timeout')), 8000))
     ]);
     DB.customers = c.docs.map(d => d.data());
     DB.products  = p.docs.map(d => d.data());
     DB.invoices  = i.docs.map(d => d.data());
+    if (s.exists && s.data().pin) localStorage.setItem('billing_pin', s.data().pin);
     dbSave();
     showPage('dashboard');
   } catch(e) {
