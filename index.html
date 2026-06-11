@@ -545,7 +545,8 @@ body.admin-mode #sales-footer    { display: none !important; }
     <div id="invoice-modal-body"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('invoice-modal')">סגור</button>
-      <button id="whatsapp-btn" class="btn" style="background:#25D366;color:#fff;display:none;" onclick="openWhatsAppModal()">&#x1F4F1; שלח ב-WhatsApp</button>
+      <button id="whatsapp-btn" class="btn" style="background:#25D366;color:#fff;display:none;" onclick="openWhatsAppModal()">&#x1F4F1; שלח טקסט</button>
+      <button id="pdf-btn" class="btn" style="background:#DC2626;color:#fff;display:none;" onclick="sendReceiptPDF()">&#x1F4CE; שלח PDF</button>
       <button class="btn btn-primary" onclick="doPrint()">&#x1F5A8; הדפס</button>
     </div>
   </div>
@@ -1378,7 +1379,9 @@ function openInvoiceView(num) {
   const cust = DB.customers.find(c => c.id === inv.customerId);
   _printInv = { ...inv, phone: cust?.phone || '' };
   document.getElementById('invoice-modal-body').innerHTML = buildInvoiceHTML(_printInv);
-  document.getElementById('whatsapp-btn').style.display = inv.customerId === 'GUEST' ? 'inline-flex' : 'none';
+  const isGuest = inv.customerId === 'GUEST';
+  document.getElementById('whatsapp-btn').style.display = isGuest ? 'inline-flex' : 'none';
+  document.getElementById('pdf-btn').style.display      = isGuest ? 'inline-flex' : 'none';
   document.getElementById('invoice-modal').classList.remove('hidden');
 }
 
@@ -1483,6 +1486,56 @@ function sendWhatsApp() {
   const text = encodeURIComponent(buildReceiptText(_printInv));
   window.open(`https://wa.me/${intl}?text=${text}`, '_blank');
   closeModal('whatsapp-modal');
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function sendReceiptPDF() {
+  const inv = _printInv;
+  showLoading(true, 'מכין PDF...');
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+
+    // Build a clean printable div
+    const el = document.createElement('div');
+    el.style.cssText = 'padding:24px; font-family:Arial,sans-serif; direction:rtl; color:#1E293B; width:148mm;';
+    el.innerHTML = buildInvoiceHTML(inv);
+    document.body.appendChild(el);
+
+    const blob = await html2pdf().set({
+      margin: 8,
+      filename: `חשבון_${inv.num}.pdf`,
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a5', orientation: 'portrait' }
+    }).from(el).outputPdf('blob');
+
+    document.body.removeChild(el);
+    showLoading(false);
+
+    const file = new File([blob], `חשבון_${inv.num}.pdf`, { type: 'application/pdf' });
+
+    // Mobile: Web Share API → user picks WhatsApp from share sheet
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: `חשבון ${inv.num} - מזנון הבריכה` });
+    } else {
+      // Desktop: download + instruction
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = file.name; a.click();
+      URL.revokeObjectURL(url);
+      alert('ה-PDF הורד.\nכדי לשלוח בוואטסאפ — פתח שיחה וצרף את הקובץ שהורד.');
+    }
+  } catch(e) {
+    showLoading(false);
+    console.error(e);
+    alert('לא ניתן ליצור PDF. ודא חיבור לאינטרנט ונסה שוב.');
+  }
 }
 
 function doPrint() {
