@@ -1148,6 +1148,7 @@ function initNewInvoice() {
   _cart = [];
   const sel = document.getElementById('inv-customer');
   sel.innerHTML = '<option value="">-- בחר לקוח --</option>' +
+    '<option value="GUEST">👤 לקוח מזדמן</option>' +
     DB.customers.map(c => `<option value="${c.id}">${c.name} (${c.id})</option>`).join('');
   document.getElementById('inv-date').value = today();
   document.getElementById('inv-customer-badge').style.display = 'none';
@@ -1159,6 +1160,11 @@ function onCustomerChange() {
   const id = document.getElementById('inv-customer').value;
   const badge = document.getElementById('inv-customer-badge');
   if (!id) { badge.style.display = 'none'; return; }
+  if (id === 'GUEST') {
+    badge.innerHTML = `<strong>👤 לקוח מזדמן</strong> &nbsp;·&nbsp; מכירה ללא מנוי רשום`;
+    badge.style.display = 'block';
+    return;
+  }
   const c = DB.customers.find(x => x.id === id);
   badge.innerHTML = `<strong>${c.name}</strong> &nbsp;·&nbsp; מזהה: ${c.id}${c.phone ? ' &nbsp;·&nbsp; ' + c.phone : ''}`;
   badge.style.display = 'block';
@@ -1237,7 +1243,7 @@ async function saveInvoice() {
   if (!date)   { alert('יש לבחור תאריך'); return; }
   if (!_cart.length) { alert('יש להוסיף לפחות מוצר אחד'); return; }
 
-  const cust  = DB.customers.find(c => c.id === custId);
+  const cust  = custId === 'GUEST' ? { name: 'לקוח מזדמן', phone: '' } : DB.customers.find(c => c.id === custId);
   const items = _cart.map(i => ({ pid: i.pid, name: i.name, price: i.price, qty: i.qty }));
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
   const inv   = { num: genInvNum(), customerId: custId, customerName: cust.name, date, items, total };
@@ -1277,7 +1283,7 @@ function previewPrint() {
   const custId = document.getElementById('inv-customer').value;
   const date   = document.getElementById('inv-date').value;
   if (!custId || !_cart.length) { alert('יש לבחור לקוח ולהוסיף מוצרים לפני הדפסה'); return; }
-  const cust = DB.customers.find(c => c.id === custId);
+  const cust = custId === 'GUEST' ? { name: 'לקוח מזדמן', phone: '' } : DB.customers.find(c => c.id === custId);
   const total = _cart.reduce((s, i) => s + i.price * i.qty, 0);
   printHTML(buildInvoiceHTML({
     num: 'טיוטה', customerName: cust.name, customerId: custId,
