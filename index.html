@@ -1288,9 +1288,20 @@ async function saveInvoice() {
     DB.invoices.push(inv);
     dbSave();
     _cart = [];
-    alert('🏖️ חשבון ' + inv.num + ' נסגר בהצלחה!');
-    if (adminMode) showPage('invoices');
-    else initNewInvoice();
+    if (adminMode) {
+      alert('🏖️ חשבון ' + inv.num + ' נסגר בהצלחה!');
+      showPage('invoices');
+    } else {
+      // Sales mode: show receipt with send options, then reset
+      _printInv = { ...inv, phone: '' };
+      document.getElementById('invoice-modal-body').innerHTML = buildInvoiceHTML(_printInv);
+      const isGuest = inv.customerId === 'GUEST';
+      document.getElementById('whatsapp-btn').style.display = isGuest ? 'inline-flex' : 'none';
+      document.getElementById('pdf-btn').style.display      = isGuest ? 'inline-flex' : 'none';
+      // Replace close button behavior: close → reset form
+      document.getElementById('invoice-modal').classList.remove('hidden');
+      document.getElementById('invoice-modal').dataset.salesMode = '1';
+    }
   } catch(e) {
     // Revert stock on error
     items.forEach(item => {
@@ -1657,7 +1668,14 @@ function runExport() {
 }
 
 // ─── MODALS / CONFIRM ────────────────────────────────────────
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function closeModal(id) {
+  const el = document.getElementById(id);
+  el.classList.add('hidden');
+  if (id === 'invoice-modal' && el.dataset.salesMode === '1') {
+    el.dataset.salesMode = '';
+    initNewInvoice();
+  }
+}
 
 function askDelete(type, name, cb) {
   _confirmCb = cb;
