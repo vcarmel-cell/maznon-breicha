@@ -180,6 +180,16 @@ tr:last-child td { border-bottom: none; }
   position: absolute; right: 11px; top: 50%;
   transform: translateY(-50%); color: #7DD3FC; font-size: 15px; pointer-events: none;
 }
+#customer-results { margin-top: 8px; }
+#customer-results .cust-opt {
+  padding: 10px 14px; cursor: pointer;
+  border-bottom: 1px solid #F1F5F9;
+  font-size: 14px; color: #0C4A6E;
+  border-radius: 8px;
+}
+#customer-results .cust-opt:hover { background: #E0F2FE; }
+#customer-results .cust-opt-empty { padding: 10px; color: #94A3B8; text-align: center; font-size: 13px; }
+body.sales-mode #inv-date-row { display: none; }
 
 .empty-state { text-align: center; padding: 40px 20px; color: #7DD3FC; }
 .empty-state .empty-icon { font-size: 44px; margin-bottom: 12px; }
@@ -358,19 +368,17 @@ body.admin-mode #sales-footer    { display: none !important; }
       </div>
 
       <div class="card" style="margin-bottom:22px;">
-        <div class="form-row">
-          <div class="form-group" style="margin:0;">
-            <label>מנוי *</label>
-            <select id="inv-customer" onchange="onCustomerChange()">
-              <option value="">-- בחר מנוי --</option>
-            </select>
-          </div>
-          <div class="form-group" style="margin:0;">
-            <label>תאריך *</label>
-            <input type="date" id="inv-date">
-          </div>
+        <div class="search-bar" style="margin-bottom:0;">
+          <span class="search-icon">&#x1F50D;</span>
+          <input type="text" id="customer-search-input" placeholder="חפש מנוי..." autocomplete="off" oninput="filterCustomers()">
         </div>
-        <div id="inv-customer-badge" style="display:none; margin-top:12px; padding:10px 14px; background:#E0F2FE; border-radius:9px; font-size:14px; border:1px solid #7DD3FC; color:#0C4A6E;"></div>
+        <div id="customer-results"></div>
+        <div id="inv-customer-badge" style="display:none; margin-top:10px; padding:10px 14px; background:#E0F2FE; border-radius:9px; font-size:14px; border:1px solid #7DD3FC; color:#0C4A6E;"></div>
+        <input type="hidden" id="inv-customer">
+        <div id="inv-date-row" class="form-group" style="margin-top:12px;margin-bottom:0;">
+          <label>תאריך *</label>
+          <input type="date" id="inv-date">
+        </div>
       </div>
 
       <div class="invoice-grid">
@@ -1166,14 +1174,43 @@ function deleteProductById(id) {
 }
 
 // ─── NEW INVOICE ─────────────────────────────────────────────
+function filterCustomers() {
+  const q = (document.getElementById('customer-search-input').value || '').toLowerCase().trim();
+  const list = document.getElementById('customer-results');
+  if (q.length < 2) { list.innerHTML = ''; return; }
+  const items = [];
+  if ('לקוח מזדמן'.includes(q)) {
+    items.push(`<div class="cust-opt" data-id="GUEST" onclick="selectCustomer(this)">👤 לקוח מזדמן</div>`);
+  }
+  DB.customers.forEach(c => {
+    if (c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)) {
+      items.push(`<div class="cust-opt" data-id="${c.id}" onclick="selectCustomer(this)">
+        <strong>${c.name}</strong> <span style="color:#64748B;font-size:12px;margin-right:6px;">${c.id}</span>
+      </div>`);
+    }
+  });
+  list.innerHTML = items.length ? items.join('') : '<div class="cust-opt-empty">לא נמצאו תוצאות</div>';
+}
+
+function selectCustomer(el) {
+  document.getElementById('inv-customer').value          = el.dataset.id;
+  document.getElementById('customer-search-input').value = '';
+  document.getElementById('customer-results').innerHTML  = '';
+  onCustomerChange();
+}
+
 function initNewInvoice() {
   _cart = [];
-  const sel = document.getElementById('inv-customer');
-  sel.innerHTML = '<option value="">-- בחר לקוח --</option>' +
-    '<option value="GUEST">👤 לקוח מזדמן</option>' +
-    DB.customers.map(c => `<option value="${c.id}">${c.name} (${c.id})</option>`).join('');
+  document.getElementById('inv-customer').value          = '';
+  document.getElementById('customer-search-input').value = '';
+  document.getElementById('customer-results').innerHTML  = '';
   document.getElementById('inv-date').value = today();
-  document.getElementById('inv-customer-badge').style.display = 'none';
+  if (!adminMode) {
+    document.getElementById('inv-customer').value = 'GUEST';
+    onCustomerChange();
+  } else {
+    document.getElementById('inv-customer-badge').style.display = 'none';
+  }
   renderPickerProducts();
   renderCart();
 }
@@ -1508,22 +1545,81 @@ function loadScript(src) {
   });
 }
 
+function buildPDFHTML(inv) {
+  const VAT_RATE = 0.18;
+  const beforeVat = inv.total / (1 + VAT_RATE);
+  const vatAmt    = inv.total - beforeVat;
+  // Container: 400px box-sizing:border-box, padding 16px each side → 368px inner content
+  // Columns: 178 + 50 + 70 + 70 = 368px (exact fit, no overflow)
+  const rows = inv.items.map(item => `
+    <tr>
+      <td style="padding:7px 5px;border-bottom:1px solid #E2E8F0;font-size:13px;overflow:hidden;word-break:break-word;">${item.name}</td>
+      <td style="padding:7px 5px;border-bottom:1px solid #E2E8F0;font-size:13px;text-align:center;">${item.qty}</td>
+      <td style="padding:7px 5px;border-bottom:1px solid #E2E8F0;font-size:13px;text-align:center;">&#x20AA;${item.price.toFixed(2)}</td>
+      <td style="padding:7px 5px;border-bottom:1px solid #E2E8F0;font-size:13px;text-align:center;font-weight:600;">&#x20AA;${(item.price*item.qty).toFixed(2)}</td>
+    </tr>`).join('');
+  return `
+    <div style="box-sizing:border-box;width:400px;font-family:Arial,sans-serif;direction:rtl;color:#1E293B;padding:16px;background:#fff;">
+      <div style="border-bottom:3px solid #0EA5E9;padding-bottom:12px;margin-bottom:12px;">
+        <div style="font-size:12px;color:#0369A1;">&#127946; מזנון הבריכה &nbsp;·&nbsp; קיבוץ ניצנים &nbsp;·&nbsp; ח.פ: 570004408</div>
+        <div style="font-size:26px;font-weight:800;color:#0284C7;margin-top:6px;">${inv.num}</div>
+        <div style="font-size:12px;color:#0369A1;margin-top:3px;">תאריך: ${fmtDate(inv.date)} &nbsp;·&nbsp; &#128100; לקוח מזדמן</div>
+      </div>
+      <table style="width:368px;border-collapse:collapse;margin-bottom:12px;table-layout:fixed;">
+        <colgroup>
+          <col style="width:178px;">
+          <col style="width:50px;">
+          <col style="width:70px;">
+          <col style="width:70px;">
+        </colgroup>
+        <thead>
+          <tr style="background:#F0F9FF;">
+            <th style="padding:7px 5px;font-size:11px;color:#0369A1;text-align:right;">מוצר</th>
+            <th style="padding:7px 5px;font-size:11px;color:#0369A1;text-align:center;">כמות</th>
+            <th style="padding:7px 5px;font-size:11px;color:#0369A1;text-align:center;">מחיר</th>
+            <th style="padding:7px 5px;font-size:11px;color:#0369A1;text-align:center;">סכום</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;overflow:hidden;">
+        <table style="width:368px;border-collapse:collapse;table-layout:fixed;">
+          <colgroup><col style="width:248px;"><col style="width:120px;"></colgroup>
+          <tbody>
+            <tr>
+              <td style="padding:8px 10px;font-size:12px;color:#475569;">סכום לפני מע&quot;מ</td>
+              <td style="padding:8px 10px;font-size:12px;color:#475569;text-align:center;">&#x20AA;${beforeVat.toFixed(2)}</td>
+            </tr>
+            <tr style="border-top:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0;">
+              <td style="padding:8px 10px;font-size:12px;color:#475569;">מע&quot;מ 18%</td>
+              <td style="padding:8px 10px;font-size:12px;color:#475569;text-align:center;">&#x20AA;${vatAmt.toFixed(2)}</td>
+            </tr>
+            <tr style="background:#EFF6FF;">
+              <td style="padding:10px 10px;font-size:14px;font-weight:700;color:#0C4A6E;">&#x202;סה&quot;כ לתשלום</td>
+              <td style="padding:10px 10px;font-size:20px;font-weight:800;color:#0284C7;text-align:center;">&#x20AA;${inv.total.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="text-align:center;margin-top:14px;font-size:11px;color:#94A3B8;">תודה על הרכישה! &#127958;</div>
+    </div>`;
+}
+
 async function sendReceiptPDF() {
   const inv = _printInv;
   showLoading(true, 'מכין PDF...');
   try {
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
 
-    // Build a clean printable div
     const el = document.createElement('div');
-    el.style.cssText = 'padding:24px; font-family:Arial,sans-serif; direction:rtl; color:#1E293B; width:148mm;';
-    el.innerHTML = buildInvoiceHTML(inv);
+    el.style.cssText = 'position:fixed;top:0;right:0;z-index:-1;background:#fff;';
+    el.innerHTML = buildPDFHTML(inv);
     document.body.appendChild(el);
 
     const blob = await html2pdf().set({
-      margin: 8,
+      margin: [12, 12, 12, 12],
       filename: `חשבון_${inv.num}.pdf`,
-      html2canvas: { scale: 2, useCORS: true },
+      html2canvas: { scale: 2, useCORS: true, windowWidth: 432 },
       jsPDF: { unit: 'mm', format: 'a5', orientation: 'portrait' }
     }).from(el).outputPdf('blob');
 
@@ -1846,7 +1942,11 @@ async function boot() {
     DB.invoices  = i.docs.map(d => d.data());
     if (s.exists && s.data().pin) localStorage.setItem('billing_pin', s.data().pin);
     dbSave();
-    showPage('dashboard');
+    if (adminMode) {
+      showPage('dashboard');
+    } else {
+      initNewInvoice(); // refresh dropdown with Firebase data, no PIN popup
+    }
   } catch(e) {
     console.warn('Firebase sync:', e.message);
     document.getElementById('offline-indicator').style.display = 'flex';
