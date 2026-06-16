@@ -263,9 +263,13 @@ body.admin-mode #sales-footer    { display: none !important; }
       </div>
       <!-- Admin mode: management buttons -->
       <div id="admin-footer" style="display:none; flex-direction:column; gap:6px; width:100%;">
-        <button onclick="openChangePinModal()"
+        <button onclick="openChangePinModal('admin')"
           style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#7DD3FC; padding:7px; border-radius:7px; cursor:pointer; font-size:12px; width:100%;">
-          &#x1F511; שנה סיסמה
+          &#x1F511; סיסמת מנהל
+        </button>
+        <button onclick="openChangePinModal('sales')"
+          style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#7DD3FC; padding:7px; border-radius:7px; cursor:pointer; font-size:12px; width:100%;">
+          &#x1F6D2; סיסמת קופה
         </button>
         <button onclick="exitAdminMode()"
           style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#FCA5A5; padding:7px; border-radius:7px; cursor:pointer; font-size:12px; width:100%;">
@@ -621,6 +625,23 @@ body.admin-mode #sales-footer    { display: none !important; }
   </div>
 </div>
 
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="display:flex; position:fixed; inset:0; background:linear-gradient(160deg,#0C4A6E 0%,#0369A1 60%,#0EA5E9 100%); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:22px; padding:40px 36px; max-width:340px; width:92%; box-shadow:0 24px 64px rgba(8,61,92,0.35); text-align:center;">
+    <div style="font-size:52px; margin-bottom:8px;">🏊‍♂️</div>
+    <h2 style="color:#0C4A6E; font-size:20px; font-weight:800; margin-bottom:4px;">מזנון הבריכה</h2>
+    <p style="color:#64748B; font-size:13px; margin-bottom:28px;">הזן סיסמה להמשך</p>
+    <input type="password" id="login-pin-input" placeholder="סיסמה"
+      style="width:100%; padding:14px; text-align:center; font-size:26px; letter-spacing:8px; border:1.5px solid #BAE6FD; border-radius:10px; background:#F0F9FF; color:#0C4A6E; font-family:inherit; box-sizing:border-box;"
+      onkeydown="if(event.key==='Enter') submitLoginPin()">
+    <div id="login-error" style="color:#EF4444; font-size:13px; display:none; margin-top:10px;">❌ סיסמה שגויה</div>
+    <button onclick="submitLoginPin()"
+      style="width:100%; margin-top:18px; padding:14px; background:linear-gradient(135deg,#0EA5E9,#0284C7); color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit;">
+      כניסה 🔓
+    </button>
+  </div>
+</div>
+
 <!-- PIN MODAL -->
 <div id="pin-modal" class="modal-overlay hidden">
   <div class="modal" style="max-width:320px; text-align:center;">
@@ -744,8 +765,35 @@ function dbLoadLocal() {
 // ─── SALES / ADMIN MODE ──────────────────────────────────────
 let adminMode = false;
 
-function getPin() { return localStorage.getItem('billing_pin') || '1234'; }
+function getPin()      { return localStorage.getItem('billing_pin')       || '1234'; }
+function getSalesPin() { return localStorage.getItem('billing_sales_pin') || '0000'; }
 
+// Login screen (shown on boot)
+function submitLoginPin() {
+  const entered = document.getElementById('login-pin-input').value;
+  const errEl   = document.getElementById('login-error');
+  if (entered === getSalesPin()) {
+    document.getElementById('login-screen').style.display = 'none';
+    enterSalesMode();
+  } else if (entered === getPin()) {
+    document.getElementById('login-screen').style.display = 'none';
+    enterAdminMode();
+  } else {
+    errEl.style.display = 'block';
+    document.getElementById('login-pin-input').value = '';
+    document.getElementById('login-pin-input').focus();
+    setTimeout(() => errEl.style.display = 'none', 2000);
+  }
+}
+
+function enterSalesMode() {
+  adminMode = false;
+  document.body.classList.remove('admin-mode');
+  document.body.classList.add('sales-mode');
+  showPage('new-invoice');
+}
+
+// Admin elevation PIN (from within sales mode)
 function openPinModal() {
   document.getElementById('pin-input').value = '';
   document.getElementById('pin-error').style.display = 'none';
@@ -779,10 +827,15 @@ function exitAdminMode() {
   showPage('new-invoice');
 }
 
-function openChangePinModal() {
+let _changingPinType = 'admin'; // 'admin' or 'sales'
+
+function openChangePinModal(type = 'admin') {
+  _changingPinType = type;
   document.getElementById('current-pin-input').value = '';
   document.getElementById('new-pin-input').value = '';
   document.getElementById('change-pin-error').style.display = 'none';
+  document.getElementById('change-pin-modal').querySelector('h2').textContent =
+    type === 'sales' ? '🛒 שינוי סיסמת קופה' : '🔑 שינוי סיסמת מנהל';
   document.getElementById('change-pin-modal').classList.remove('hidden');
 }
 
@@ -790,14 +843,20 @@ function saveNewPin() {
   const current = document.getElementById('current-pin-input').value;
   const next    = document.getElementById('new-pin-input').value.trim();
   const errEl   = document.getElementById('change-pin-error');
-  if (current !== getPin()) {
+  const currentCorrect = _changingPinType === 'sales' ? getSalesPin() : getPin();
+  if (current !== currentCorrect) {
     errEl.textContent = '❌ הסיסמה הנוכחית שגויה'; errEl.style.display = 'block'; return;
   }
   if (next.length < 4) {
     errEl.textContent = '❌ הסיסמה חייבת להכיל לפחות 4 תווים'; errEl.style.display = 'block'; return;
   }
-  localStorage.setItem('billing_pin', next);
-  if (fdb) fbSet('settings', 'config', { pin: next });
+  if (_changingPinType === 'sales') {
+    localStorage.setItem('billing_sales_pin', next);
+    if (fdb) fbSet('settings', 'config', { sales_pin: next });
+  } else {
+    localStorage.setItem('billing_pin', next);
+    if (fdb) fbSet('settings', 'config', { pin: next });
+  }
   closeModal('change-pin-modal');
   alert('✅ הסיסמה שונתה בהצלחה');
 }
@@ -1915,11 +1974,11 @@ async function applyFirebaseConfig() {
 }
 
 async function boot() {
-  // Start in sales mode
-  document.body.classList.add('sales-mode');
   document.getElementById('setup-screen').style.display = 'none';
   dbLoadLocal();
-  showPage('new-invoice');
+  // Show login screen — user must enter PIN before accessing app
+  document.getElementById('login-screen').style.display = 'flex';
+  setTimeout(() => document.getElementById('login-pin-input').focus(), 200);
 
   // Silent background sync — never blocks the UI
   try {
@@ -1940,12 +1999,15 @@ async function boot() {
     DB.customers = c.docs.map(d => d.data());
     DB.products  = p.docs.map(d => d.data());
     DB.invoices  = i.docs.map(d => d.data());
-    if (s.exists && s.data().pin) localStorage.setItem('billing_pin', s.data().pin);
+    if (s.exists) {
+      if (s.data().pin)       localStorage.setItem('billing_pin',       s.data().pin);
+      if (s.data().sales_pin) localStorage.setItem('billing_sales_pin', s.data().sales_pin);
+    }
     dbSave();
     if (adminMode) {
       showPage('dashboard');
-    } else {
-      initNewInvoice(); // refresh dropdown with Firebase data, no PIN popup
+    } else if (!document.getElementById('login-screen').style.display || document.getElementById('login-screen').style.display === 'none') {
+      initNewInvoice(); // refresh dropdown after login, no PIN popup
     }
   } catch(e) {
     console.warn('Firebase sync:', e.message);
