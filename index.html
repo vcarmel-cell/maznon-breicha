@@ -1395,34 +1395,26 @@ async function saveInvoice() {
   }).filter(Boolean);
   ops.push({ type: 'set', col: 'invoices', id: inv.num, data: inv });
 
-  showLoading(true);
-  try {
-    await fbBatch(ops);
-    DB.invoices.push(inv);
-    dbSave();
-    _cart = [];
-    if (adminMode) {
-      alert('🏖️ חשבון ' + inv.num + ' נסגר בהצלחה!');
-      showPage('invoices');
-    } else {
-      // Sales mode: show receipt with send options, then reset
-      _printInv = { ...inv, phone: '' };
-      document.getElementById('invoice-modal-body').innerHTML = buildInvoiceHTML(_printInv);
-      const isGuest = inv.customerId === 'GUEST';
-      document.getElementById('whatsapp-btn').style.display = isGuest ? 'inline-flex' : 'none';
-      document.getElementById('pdf-btn').style.display      = isGuest ? 'inline-flex' : 'none';
-      // Replace close button behavior: close → reset form
-      document.getElementById('invoice-modal').classList.remove('hidden');
-      document.getElementById('invoice-modal').dataset.salesMode = '1';
-    }
-  } catch(e) {
-    // Revert stock on error
-    items.forEach(item => {
-      const p = DB.products.find(x => x.id === item.pid);
-      if (p) p.stock += item.qty;
-    });
-    alert('שגיאה בשמירה: ' + e.message);
-  } finally { showLoading(false); }
+  // Save locally first — guarantees data is never lost if Firebase is unavailable
+  DB.invoices.push(inv);
+  dbSave();
+  _cart = [];
+
+  if (adminMode) {
+    alert('🏖️ חשבון ' + inv.num + ' נסגר בהצלחה!');
+    showPage('invoices');
+  } else {
+    _printInv = { ...inv, phone: '' };
+    document.getElementById('invoice-modal-body').innerHTML = buildInvoiceHTML(_printInv);
+    const isGuest = inv.customerId === 'GUEST';
+    document.getElementById('whatsapp-btn').style.display = isGuest ? 'inline-flex' : 'none';
+    document.getElementById('pdf-btn').style.display      = isGuest ? 'inline-flex' : 'none';
+    document.getElementById('invoice-modal').classList.remove('hidden');
+    document.getElementById('invoice-modal').dataset.salesMode = '1';
+  }
+
+  // Sync to Firebase in background — failure is silent (data is safe in localStorage)
+  fbBatch(ops).catch(e => console.warn('Firebase sync failed (data saved locally):', e.message));
 }
 
 function previewPrint() {
