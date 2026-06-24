@@ -138,14 +138,35 @@ tr:last-child td { border-bottom: none; }
 }
 .products-picker h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: #0C4A6E; }
 
-.product-list-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 11px 13px; border-radius: 10px; margin-bottom: 7px;
-  background: #F0F9FF; border: 1px solid #BAE6FD; transition: all 0.12s;
+#picker-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 10px;
 }
-.product-list-item:hover { background: #E0F2FE; border-color: #7DD3FC; transform: translateX(-2px); }
-.product-list-item .pname { font-size: 14px; font-weight: 600; color: #0C4A6E; }
-.product-list-item .pdetails { font-size: 12px; color: #0369A1; margin-top: 2px; opacity: 0.8; }
+.product-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  padding: 10px 6px 12px; gap: 7px;
+  background: #F0F9FF; border: 1.5px solid #BAE6FD; border-radius: 12px;
+  cursor: pointer; text-align: center; transition: all 0.13s;
+  min-height: 120px; width: 100%; font-family: inherit;
+}
+.product-btn:hover:not(:disabled) { background: #E0F2FE; border-color: #0EA5E9; transform: scale(1.03); }
+.product-btn:active:not(:disabled) { transform: scale(0.97); }
+.product-btn.in-cart { background: #DCFCE7; border-color: #4ADE80; }
+.product-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.product-btn img, .product-btn .pb-img-placeholder {
+  width: 58px; height: 58px; object-fit: cover; border-radius: 9px; flex-shrink: 0;
+}
+.product-btn .pb-img-placeholder {
+  background: #E0F2FE; display: flex; align-items: center; justify-content: center; font-size: 26px;
+}
+.product-btn .pb-name {
+  font-size: 12px; font-weight: 700; color: #0C4A6E;
+  line-height: 1.3; word-break: break-word;
+}
+.product-btn .pb-price { font-size: 14px; font-weight: 800; color: #0284C7; }
+.product-btn .pb-qty { font-size: 11px; color: #16A34A; font-weight: 700; }
 
 .cart {
   background: #fff; border: 1px solid #BAE6FD;
@@ -1297,20 +1318,16 @@ function renderPickerProducts() {
     const inCart  = _cart.find(c => c.pid === p.id);
     const noStock = p.stock === 0;
     const imgHtml = p.img
-      ? `<img src="${p.img}" alt="" style="width:46px;height:46px;object-fit:cover;border-radius:8px;flex-shrink:0;">`
-      : `<div style="width:46px;height:46px;border-radius:8px;background:#F0F9FF;border:1px dashed #BAE6FD;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">&#x1F374;</div>`;
-    return `<div class="product-list-item" style="${noStock ? 'opacity:0.5;' : ''}display:flex;align-items:center;gap:10px;">
+      ? `<img src="${p.img}" alt="">`
+      : `<div class="pb-img-placeholder">&#x1F374;</div>`;
+    return `<button class="product-btn${inCart ? ' in-cart' : ''}"
+      ${noStock ? 'disabled' : ''}
+      onclick="cartAdd('${p.id}')">
       ${imgHtml}
-      <div style="flex:1;min-width:0;">
-        <div class="pname">${p.name}</div>
-        <div class="pdetails">${fmt(p.price)} &nbsp;·&nbsp; מלאי: ${p.stock} יח'</div>
-      </div>
-      <button class="btn btn-sm ${inCart ? 'btn-success' : 'btn-primary'}"
-        ${noStock ? 'disabled' : ''}
-        onclick="cartAdd('${p.id}')">
-        ${inCart ? '&#x2713; נוסף' : '+ הוסף'}
-      </button>
-    </div>`;
+      <div class="pb-name">${p.name}</div>
+      <div class="pb-price">${fmt(p.price)}</div>
+      ${inCart ? `<div class="pb-qty">✓ ×${inCart.qty}</div>` : ''}
+    </button>`;
   }).join('');
 }
 
