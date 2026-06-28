@@ -1084,6 +1084,9 @@ function fmtDate(d) {
   const [y, m, day] = d.split('-');
   return `${day}/${m}/${y}`;
 }
+function fmtDateTime(inv) {
+  return inv.time ? `${fmtDate(inv.date)} ${inv.time}` : fmtDate(inv.date);
+}
 function today() { return new Date().toISOString().split('T')[0]; }
 function monthStr(ym) {
   const names = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -1135,7 +1138,7 @@ function renderDashboard() {
     ? recent.map(inv => `
         <tr>
           <td><span class="badge badge-blue">${inv.num}</span></td>
-          <td>${fmtDate(inv.date)}</td>
+          <td>${fmtDateTime(inv)}</td>
           <td>${inv.customerName}</td>
           <td>${fmt(inv.total)}</td>
           <td><button class="btn btn-sm btn-outline" onclick="openInvoiceView('${inv.num}')">&#x1F441; צפה</button></td>
@@ -1171,7 +1174,7 @@ function renderCustomers() {
            </tr></thead>
            <tbody>${recent.map(inv => `
              <tr style="border-bottom:1px solid #F1F5F9;">
-               <td style="padding:5px 10px;">${fmtDate(inv.date)}</td>
+               <td style="padding:5px 10px;">${fmtDateTime(inv)}</td>
                <td style="padding:5px 10px;"><span class="badge badge-blue">${inv.num}</span></td>
                <td style="padding:5px 10px;color:#334155;">${inv.items.map(it => `${it.name} ×${it.qty}`).join(' · ')}</td>
                <td style="padding:5px 10px;text-align:left;"><strong>${fmt(inv.total)}</strong></td>
@@ -1542,8 +1545,9 @@ async function saveInvoice() {
   const items    = _cart.map(i => ({ pid: i.pid, name: i.name, price: i.price, qty: i.qty }));
   const rawTotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const total    = _employeeDiscount ? Math.round(rawTotal * 0.70 * 100) / 100 : rawTotal;
+  const time     = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
   const inv      = {
-    num: genInvNum(), customerId: custId, customerName: cust.name, date, items, total,
+    num: genInvNum(), customerId: custId, customerName: cust.name, date, time, items, total,
     ...(_employeeDiscount ? { discount: 30, originalTotal: rawTotal } : {})
   };
 
@@ -1627,7 +1631,7 @@ function renderInvoices() {
   tbody.innerHTML = list.map(inv => `
     <tr>
       <td><span class="badge badge-blue">${inv.num}</span></td>
-      <td>${fmtDate(inv.date)}</td>
+      <td>${fmtDateTime(inv)}</td>
       <td>${inv.customerName}</td>
       <td><span class="badge badge-green">${inv.items.length} פריטים</span></td>
       <td><strong>${fmt(inv.total)}</strong></td>
@@ -1722,7 +1726,7 @@ function buildInvoiceHTML(inv) {
           <div style="font-size:13px; color:#0369A1; margin-bottom:2px;">&#x1F3CA; מזנון הבריכה</div>
           ${businessHeader}
           <div style="font-size:26px; font-weight:800; color:#0284C7; margin-top:6px;">${inv.num}</div>
-          <div style="font-size:13px; color:#0369A1; margin-top:4px;">תאריך: ${fmtDate(inv.date)}</div>
+          <div style="font-size:13px; color:#0369A1; margin-top:4px;">תאריך: ${fmtDateTime(inv)}</div>
         </div>
         <div style="text-align:left;">${customerLine}</div>
       </div>
@@ -1749,7 +1753,7 @@ function buildReceiptText(inv) {
     '*מזנון הבריכה - קיבוץ ניצנים*',
     'ח.פ: 570004408',
     '',
-    `חשבון: ${inv.num}  |  תאריך: ${fmtDate(inv.date)}`,
+    `חשבון: ${inv.num}  |  תאריך: ${fmtDateTime(inv)}`,
     '──────────────────────',
     ...inv.items.map(i => `${i.name} ×${i.qty}  ........  ₪${(i.price * i.qty).toFixed(2)}`),
     '──────────────────────',
@@ -1804,7 +1808,7 @@ function buildPDFHTML(inv) {
       <div style="border-bottom:3px solid #0EA5E9;padding-bottom:12px;margin-bottom:12px;">
         <div style="font-size:12px;color:#0369A1;">&#127946; מזנון הבריכה &nbsp;·&nbsp; קיבוץ ניצנים &nbsp;·&nbsp; ח.פ: 570004408</div>
         <div style="font-size:26px;font-weight:800;color:#0284C7;margin-top:6px;">${inv.num}</div>
-        <div style="font-size:12px;color:#0369A1;margin-top:3px;">תאריך: ${fmtDate(inv.date)} &nbsp;·&nbsp; &#128100; לקוח מזדמן</div>
+        <div style="font-size:12px;color:#0369A1;margin-top:3px;">תאריך: ${fmtDateTime(inv)} &nbsp;·&nbsp; &#128100; לקוח מזדמן</div>
       </div>
       <table style="width:368px;border-collapse:collapse;margin-bottom:12px;table-layout:fixed;">
         <colgroup>
@@ -1932,7 +1936,7 @@ function updateExpCount() {
   if (type === 'detail') {
     const rows = list.slice(0,5).flatMap(inv =>
       inv.items.map(item => `<tr>
-        <td>${inv.num}</td><td>${fmtDate(inv.date)}</td>
+        <td>${inv.num}</td><td>${fmtDateTime(inv)}</td>
         <td>${inv.customerName}</td><td>${item.name}</td>
         <td style="text-align:left;">${item.qty}</td>
         <td style="text-align:left;">${fmt(item.price * item.qty)}</td>
@@ -1940,7 +1944,7 @@ function updateExpCount() {
     );
     prev.innerHTML = `<p style="font-size:13px;color:#64748B;margin-bottom:12px;">תצוגה מקדימה (${Math.min(5,list.length)} חשבונות ראשונים):</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>חשבון</th><th>תאריך</th><th>לקוח</th><th>מוצר</th><th>כמות</th><th>סכום</th></tr></thead>
+        <thead><tr><th>חשבון</th><th>תאריך ושעה</th><th>לקוח</th><th>מוצר</th><th>כמות</th><th>סכום</th></tr></thead>
         <tbody>${rows.join('')}</tbody>
       </table></div>`;
   } else {
@@ -1970,15 +1974,15 @@ function runExport() {
   const wb = XLSX.utils.book_new();
 
   if (type === 'detail') {
-    const data = [["מס' חשבון","תאריך","מזהה לקוח","שם לקוח","מוצר","מחיר יחידה","כמות","סה\"כ"]];
+    const data = [["מס' חשבון","תאריך","שעה","מזהה לקוח","שם לקוח","מוצר","מחיר יחידה","כמות","סה\"כ"]];
     list.forEach(inv => inv.items.forEach(item =>
-      data.push([inv.num, fmtDate(inv.date), inv.customerId, inv.customerName, item.name, item.price, item.qty, item.price * item.qty])
+      data.push([inv.num, fmtDate(inv.date), inv.time || '', inv.customerId, inv.customerName, item.name, item.price, item.qty, item.price * item.qty])
     ));
     const grandTotal = list.reduce((s,i)=>s+i.total,0);
     data.push([]);
-    data.push(['','','','','','','סה"כ:', grandTotal]);
+    data.push(['','','','','','','','סה"כ:', grandTotal]);
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [12,12,12,20,22,14,8,14].map(w=>({wch:w}));
+    ws['!cols'] = [12,12,8,12,20,22,14,8,14].map(w=>({wch:w}));
     XLSX.utils.book_append_sheet(wb, ws, 'רכישות מפורט');
   } else {
     const byC = {};
