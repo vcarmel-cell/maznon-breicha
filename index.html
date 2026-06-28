@@ -281,6 +281,9 @@ body.admin-mode #sales-footer    { display: none !important; }
       <a onclick="showPage('export')" id="nav-export">
         <span class="icon">&#x1F4CA;</span><span>ייצוא Excel</span>
       </a>
+      <a onclick="showPage('devices')" id="nav-devices">
+        <span class="icon">&#x1F4F1;</span><span>מכשירים</span>
+      </a>
     </nav>
     <div class="sidebar-footer">
       <!-- Sales mode: hidden lock button -->
@@ -515,8 +518,43 @@ body.admin-mode #sales-footer    { display: none !important; }
       </div>
     </div>
 
+    <!-- DEVICES -->
+    <div id="page-devices" class="page">
+      <div class="page-header">
+        <div>
+          <h1>&#x1F4F1; מכשירים מחוברים</h1>
+          <p>מכשירים שנכנסו למערכת</p>
+        </div>
+        <button class="btn btn-outline" onclick="renderDevicesPage()">&#x1F504; רענן</button>
+      </div>
+      <div style="margin-bottom:10px; padding:10px 14px; background:#F0F9FF; border:1px solid #BAE6FD; border-radius:10px; font-size:13px; color:#0369A1; display:flex; gap:18px;">
+        <span>&#x1F7E2; מחובר &lt;3 דקות</span>
+        <span>&#x1F7E1; פעיל לאחרונה &lt;30 דקות</span>
+        <span>&#x26AB; לא מחובר</span>
+      </div>
+      <div id="devices-list"><p style="color:#94A3B8; text-align:center; padding:40px;">טוען...</p></div>
+    </div>
+
   </div><!-- /main -->
 </div><!-- /layout -->
+
+<!-- DEVICE NAME MODAL -->
+<div id="device-name-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:340px;">
+    <h2>&#x1F4F1; שם המכשיר</h2>
+    <p style="font-size:14px; color:#64748B; margin-bottom:16px;">
+      הזן שם לזיהוי מכשיר זה — לדוגמה: <em>iPhone של מיכל</em>
+    </p>
+    <div class="form-group">
+      <label>שם המכשיר</label>
+      <input type="text" id="device-name-input" placeholder="iPhone של..." maxlength="40"
+        onkeydown="if(event.key==='Enter') saveDeviceName()">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="saveDeviceName()">&#x2705; אישור</button>
+    </div>
+  </div>
+</div>
 
 <!-- CUSTOMER MODAL -->
 <div id="customer-modal" class="modal-overlay hidden">
@@ -799,16 +837,109 @@ let adminMode = false;
 function getPin()      { return localStorage.getItem('billing_pin')       || '1234'; }
 function getSalesPin() { return localStorage.getItem('billing_sales_pin') || '0000'; }
 
+// ─── DEVICE TRACKING ─────────────────────────────────────────
+function getDeviceId() {
+  let id = localStorage.getItem('billing_device_id');
+  if (!id) {
+    id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'dev-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+    localStorage.setItem('billing_device_id', id);
+  }
+  return id;
+}
+function getDeviceName() { return localStorage.getItem('billing_device_name') || ''; }
+
+let _heartbeatInterval = null;
+
+function registerDevice(mode) {
+  const id   = getDeviceId();
+  const name = getDeviceName() || 'מכשיר לא מוגדר';
+  const ua   = navigator.userAgent;
+  const isMobile = /iPhone|iPad|Android|Mobile/i.test(ua);
+  const data = { id, name, mode, lastSeen: new Date().toISOString(),
+                 deviceType: isMobile ? 'mobile' : 'desktop', ua: ua.slice(0, 200) };
+  if (fdb) fdb.collection('devices').doc(id).set(data).catch(() => {});
+
+  if (_heartbeatInterval) clearInterval(_heartbeatInterval);
+  _heartbeatInterval = setInterval(() => {
+    if (fdb) fdb.collection('devices').doc(id).update({ lastSeen: new Date().toISOString() }).catch(() => {});
+  }, 2 * 60 * 1000);
+}
+
+let _deviceNameCallback = null;
+function promptDeviceName(callback) {
+  if (getDeviceName()) { callback(); return; }
+  _deviceNameCallback = callback;
+  document.getElementById('device-name-input').value = '';
+  document.getElementById('device-name-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('device-name-input').focus(), 150);
+}
+function saveDeviceName() {
+  const name = (document.getElementById('device-name-input').value || '').trim();
+  if (!name) { document.getElementById('device-name-input').focus(); return; }
+  localStorage.setItem('billing_device_name', name);
+  document.getElementById('device-name-modal').classList.add('hidden');
+  if (_deviceNameCallback) { const cb = _deviceNameCallback; _deviceNameCallback = null; cb(); }
+}
+
+async function renderDevicesPage() {
+  const el = document.getElementById('devices-list');
+  el.innerHTML = '<p style="color:#94A3B8; text-align:center; padding:40px;">טוען...</p>';
+  if (!fdb) { el.innerHTML = '<p style="color:#EF4444; text-align:center; padding:20px;">Firebase לא זמין</p>'; return; }
+  try {
+    const snap = await fdb.collection('devices').get();
+    if (snap.empty) { el.innerHTML = '<p style="color:#94A3B8; text-align:center; padding:40px;">אין מכשירים רשומים עדיין</p>'; return; }
+    const now = Date.now();
+    const myId = getDeviceId();
+    const sorted = snap.docs.slice().sort((a, b) => (b.data().lastSeen || '') > (a.data().lastSeen || '') ? 1 : -1);
+    el.innerHTML = sorted.map(doc => {
+      const d = doc.data();
+      const lastSeen = d.lastSeen ? new Date(d.lastSeen) : null;
+      const minsAgo  = lastSeen ? Math.floor((now - lastSeen.getTime()) / 60000) : 9999;
+      const isOnline = minsAgo < 3;
+      const isRecent = minsAgo < 30;
+      const dot   = isOnline ? '🟢' : isRecent ? '🟡' : '⚫';
+      const color = isOnline ? '#16A34A' : isRecent ? '#D97706' : '#94A3B8';
+      const statusTxt = isOnline ? 'מחובר עכשיו'
+        : lastSeen ? (minsAgo < 60 ? `לפני ${minsAgo} דקות` : `לפני ${Math.floor(minsAgo/60)} שעות`) : '—';
+      const modeLabel = d.mode === 'admin' ? '&#x1F468;&#x200D;&#x1F4BB; מנהל' : '&#x1F6D2; קופה';
+      const typeIcon  = d.deviceType === 'mobile' ? '📱' : '🖥️';
+      const isMe = d.id === myId;
+      return `<div class="card" style="margin-bottom:12px; padding:16px 18px;${isMe ? ' border:2px solid #0EA5E9;' : ''}">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="font-size:26px; line-height:1;">${typeIcon}</span>
+            <div>
+              <div style="font-weight:700; font-size:15px; color:#0C4A6E; display:flex; align-items:center; gap:8px;">
+                ${d.name || 'ללא שם'}
+                ${isMe ? '<span style="font-size:11px; background:#E0F2FE; color:#0284C7; border-radius:20px; padding:2px 8px; font-weight:600;">המכשיר הזה</span>' : ''}
+              </div>
+              <div style="font-size:12px; color:#64748B; margin-top:3px;">${modeLabel}</div>
+            </div>
+          </div>
+          <div style="text-align:left; flex-shrink:0;">
+            <div style="font-size:14px; font-weight:700; color:${color};">${dot} ${statusTxt}</div>
+            ${lastSeen ? `<div style="font-size:11px; color:#94A3B8; margin-top:2px;">${lastSeen.toLocaleString('he-IL')}</div>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<p style="color:#EF4444; padding:20px;">שגיאה: ${e.message}</p>`;
+  }
+}
+
 // Login screen (shown on boot)
 function submitLoginPin() {
   const entered = document.getElementById('login-pin-input').value;
   const errEl   = document.getElementById('login-error');
   if (entered === getSalesPin()) {
     document.getElementById('login-screen').style.display = 'none';
-    enterSalesMode();
+    promptDeviceName(() => { registerDevice('sales'); enterSalesMode(); });
   } else if (entered === getPin()) {
     document.getElementById('login-screen').style.display = 'none';
-    enterAdminMode();
+    promptDeviceName(() => { registerDevice('admin'); enterAdminMode(); });
   } else {
     errEl.style.display = 'block';
     document.getElementById('login-pin-input').value = '';
@@ -836,6 +967,7 @@ function submitPin() {
   const entered = document.getElementById('pin-input').value;
   if (entered === getPin()) {
     closeModal('pin-modal');
+    registerDevice('admin');
     enterAdminMode();
   } else {
     document.getElementById('pin-error').style.display = 'block';
@@ -855,6 +987,7 @@ function exitAdminMode() {
   adminMode = false;
   document.body.classList.remove('admin-mode');
   document.body.classList.add('sales-mode');
+  registerDevice('sales');
   showPage('new-invoice');
 }
 
@@ -962,7 +1095,7 @@ function allMonths() {
 }
 
 // ─── NAVIGATION ──────────────────────────────────────────────
-const ADMIN_PAGES = ['dashboard','customers','products','invoices','export'];
+const ADMIN_PAGES = ['dashboard','customers','products','invoices','export','devices'];
 function showPage(p) {
   if (!adminMode && ADMIN_PAGES.includes(p)) { openPinModal(); return; }
   document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
@@ -975,7 +1108,8 @@ function showPage(p) {
     products: renderProducts,
     'new-invoice': initNewInvoice,
     invoices: () => { populateInvoiceFilters(); renderInvoices(); },
-    export: initExport
+    export: initExport,
+    devices: renderDevicesPage
   })[p]?.();
 }
 
