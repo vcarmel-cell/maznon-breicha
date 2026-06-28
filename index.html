@@ -188,6 +188,15 @@ tr:last-child td { border-bottom: none; }
   padding-top: 14px; margin-top: 8px; font-weight: 800; font-size: 17px;
   color: #0C4A6E;
 }
+.btn-employee-discount {
+  width: 100%; justify-content: center; padding: 10px;
+  background: #FFF7ED; border: 2px solid #FED7AA; color: #C2410C;
+  border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
+}
+.btn-employee-discount.active {
+  background: #EA580C; border-color: #C2410C; color: #fff;
+}
 
 .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
 .badge-blue  { background: #E0F2FE; color: #0369A1; }
@@ -428,6 +437,7 @@ body.admin-mode #sales-footer    { display: none !important; }
               <span id="cart-total-val" style="color:#0284C7;">&#x20AA;0</span>
             </div>
             <div style="margin-top:18px; display:flex; flex-direction:column; gap:9px;">
+              <button id="employee-discount-btn" class="btn-employee-discount" onclick="toggleEmployeeDiscount()">&#x1F477; הנחת עובד 30%</button>
               <button class="btn btn-success" style="width:100%; justify-content:center; padding:11px;" onclick="saveInvoice()">&#x2705; סגור חשבון</button>
               <button class="btn btn-outline" style="width:100%; justify-content:center;" onclick="previewPrint()">&#x1F5A8; הדפסה מקדימה</button>
             </div>
@@ -774,7 +784,7 @@ async function fbBatch(ops) {
 
 // ─── DATA ────────────────────────────────────────────────────
 const DB = { customers: [], products: [], invoices: [] };
-let _editCustId = null, _editProdId = null, _cart = [], _confirmCb = null, _printInv = null;
+let _editCustId = null, _editProdId = null, _cart = [], _confirmCb = null, _printInv = null, _employeeDiscount = false;
 
 function dbSave() {
   localStorage.setItem('billing_db', JSON.stringify(DB));
@@ -1279,8 +1289,18 @@ function selectCustomer(el) {
   onCustomerChange();
 }
 
+function toggleEmployeeDiscount() {
+  _employeeDiscount = !_employeeDiscount;
+  const btn = document.getElementById('employee-discount-btn');
+  if (btn) btn.classList.toggle('active', _employeeDiscount);
+  renderCart();
+}
+
 function initNewInvoice() {
   _cart = [];
+  _employeeDiscount = false;
+  const btn = document.getElementById('employee-discount-btn');
+  if (btn) btn.classList.remove('active');
   document.getElementById('inv-customer').value          = '';
   document.getElementById('customer-search-input').value = '';
   document.getElementById('customer-results').innerHTML  = '';
@@ -1367,8 +1387,14 @@ function renderCart() {
       <span class="cprice">${fmt(item.price * item.qty)}</span>
       <button class="btn btn-sm btn-danger" onclick="cartRemove('${item.pid}')">&#x2715;</button>
     </div>`).join('');
-  const total = _cart.reduce((s, i) => s + i.price * i.qty, 0);
-  document.getElementById('cart-total-val').innerHTML = fmt(total);
+  const rawTotal = _cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const finalTotal = _employeeDiscount ? rawTotal * 0.70 : rawTotal;
+  const totalEl = document.getElementById('cart-total-val');
+  if (_employeeDiscount) {
+    totalEl.innerHTML = `<span style="text-decoration:line-through;color:#94A3B8;font-size:14px;font-weight:600;">${fmt(rawTotal)}</span> <span style="color:#EA580C;">${fmt(finalTotal)}</span>`;
+  } else {
+    totalEl.innerHTML = fmt(rawTotal);
+  }
 }
 
 async function saveInvoice() {
@@ -1378,10 +1404,14 @@ async function saveInvoice() {
   if (!date)   { alert('יש לבחור תאריך'); return; }
   if (!_cart.length) { alert('יש להוסיף לפחות מוצר אחד'); return; }
 
-  const cust  = custId === 'GUEST' ? { name: 'לקוח מזדמן', phone: '' } : DB.customers.find(c => c.id === custId);
-  const items = _cart.map(i => ({ pid: i.pid, name: i.name, price: i.price, qty: i.qty }));
-  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const inv   = { num: genInvNum(), customerId: custId, customerName: cust.name, date, items, total };
+  const cust     = custId === 'GUEST' ? { name: 'לקוח מזדמן', phone: '' } : DB.customers.find(c => c.id === custId);
+  const items    = _cart.map(i => ({ pid: i.pid, name: i.name, price: i.price, qty: i.qty }));
+  const rawTotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const total    = _employeeDiscount ? Math.round(rawTotal * 0.70 * 100) / 100 : rawTotal;
+  const inv      = {
+    num: genInvNum(), customerId: custId, customerName: cust.name, date, items, total,
+    ...(_employeeDiscount ? { discount: 30, originalTotal: rawTotal } : {})
+  };
 
   // Deduct stock in memory
   items.forEach(item => {
@@ -1524,6 +1554,11 @@ function buildInvoiceHTML(inv) {
        <div style="font-size:13px; color:#0369A1;">מס' חיוב: ${inv.customerId}</div>
        ${inv.phone ? `<div style="font-size:13px; color:#0369A1;">${inv.phone}</div>` : ''}`;
 
+  const discountLine = inv.discount ? `
+      <div style="display:flex; justify-content:space-between; font-size:14px; color:#EA580C; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #E2E8F0; font-weight:700;">
+        <span>&#x1F477; הנחת עובד ${inv.discount}%</span><span>-&#x20AA;${(inv.originalTotal - inv.total).toFixed(2)}</span>
+      </div>` : '';
+
   const totalSection = isGuest ? `
     <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:14px 18px; margin-bottom:0;">
       <div style="display:flex; justify-content:space-between; font-size:14px; color:#475569; margin-bottom:6px;">
@@ -1532,14 +1567,18 @@ function buildInvoiceHTML(inv) {
       <div style="display:flex; justify-content:space-between; font-size:14px; color:#475569; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #E2E8F0;">
         <span>מע"מ 18%</span><span>&#x20AA;${vatAmt.toFixed(2)}</span>
       </div>
+      ${discountLine}
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <span style="font-weight:700; font-size:16px; color:#0C4A6E;">סה"כ לתשלום</span>
         <span style="font-weight:800; font-size:24px; color:#0284C7;">${fmt(inv.total)}</span>
       </div>
     </div>` : `
-    <div style="display:flex; justify-content:space-between; align-items:center; background:#E0F2FE; padding:16px 18px; border-radius:10px; border:1px solid #7DD3FC;">
-      <span style="font-weight:700; font-size:16px; color:#0C4A6E;">סה"כ לתשלום</span>
-      <span style="font-weight:800; font-size:24px; color:#0284C7;">${fmt(inv.total)}</span>
+    <div style="background:#E0F2FE; padding:16px 18px; border-radius:10px; border:1px solid #7DD3FC;">
+      ${discountLine}
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:700; font-size:16px; color:#0C4A6E;">סה"כ לתשלום</span>
+        <span style="font-weight:800; font-size:24px; color:#0284C7;">${fmt(inv.total)}</span>
+      </div>
     </div>`;
 
   return `
