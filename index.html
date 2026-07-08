@@ -1280,15 +1280,40 @@ function deleteCustomerById(id) {
 }
 
 // ─── PRODUCTS ────────────────────────────────────────────────
+function productsSorted() {
+  return DB.products.slice().sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+}
+
+async function moveProduct(id, dir) {
+  // Normalize: assign clean 0-based order to all products
+  const sorted = productsSorted();
+  sorted.forEach((p, i) => { p.order = i; });
+
+  const idx  = sorted.findIndex(p => p.id === id);
+  const swap = idx + dir;
+  if (swap < 0 || swap >= sorted.length) return;
+
+  sorted[idx].order  = swap;
+  sorted[swap].order = idx;
+
+  dbSave();
+  renderProducts();
+  // sync both changed products to Firebase in background
+  fbSet('products', sorted[idx].id,  { ...sorted[idx]  }).catch(() => {});
+  fbSet('products', sorted[swap].id, { ...sorted[swap] }).catch(() => {});
+}
+
 function renderProducts() {
-  const q = (document.getElementById('product-search')?.value || '').toLowerCase();
-  const list = DB.products.filter(p => p.name.toLowerCase().includes(q));
-  const tbody = document.getElementById('products-tbody');
+  const q      = (document.getElementById('product-search')?.value || '').toLowerCase();
+  const sorted = productsSorted();
+  const list   = sorted.filter(p => p.name.toLowerCase().includes(q));
+  const tbody  = document.getElementById('products-tbody');
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><p>אין מוצרים להצגה</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><p>אין מוצרים להצגה</p></td></tr>';
     return;
   }
-  tbody.innerHTML = list.map(p => {
+  const searching = q.length > 0;
+  tbody.innerHTML = list.map((p, i) => {
     const badge = p.stock === 0
       ? `<span class="badge badge-red">אזל המלאי</span>`
       : p.stock <= 5
@@ -1297,11 +1322,15 @@ function renderProducts() {
     const imgCell = p.img
       ? `<img src="${p.img}" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid #BAE6FD;display:block;">`
       : `<div style="width:44px;height:44px;border-radius:8px;border:1px dashed #CBD5E1;background:#F8FAFC;display:flex;align-items:center;justify-content:center;font-size:18px;">&#x1F4F7;</div>`;
+    const arrows = searching ? '' : `
+      <button class="btn btn-sm btn-outline" style="padding:3px 7px;font-size:13px;" ${i === 0 ? 'disabled' : ''} onclick="moveProduct('${p.id}',-1)" title="הזז למעלה">&#x25B2;</button>
+      <button class="btn btn-sm btn-outline" style="padding:3px 7px;font-size:13px;" ${i === list.length-1 ? 'disabled' : ''} onclick="moveProduct('${p.id}',1)" title="הזז למטה">&#x25BC;</button>`;
     return `<tr>
       <td style="padding:8px;">${imgCell}</td>
       <td><strong>${p.name}</strong></td>
       <td>${fmt(p.price)}</td>
       <td>${badge}</td>
+      <td style="white-space:nowrap;">${arrows}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-secondary" onclick="openProductModal('${p.id}')">&#x270F;&#xFE0F; ערוך</button>
         <button class="btn btn-sm btn-danger" style="margin-right:6px;" onclick="deleteProductById('${p.id}')">&#x1F5D1;&#xFE0F;</button>
@@ -1385,8 +1414,9 @@ async function saveProduct() {
       p.name = name; p.price = price; p.stock = stock; p.img = img;
       await fbSet('products', _editProdId, p);
     } else {
-      const id = genProdId();
-      const p = { id, name, price, stock, img };
+      const id    = genProdId();
+      const order = DB.products.length > 0 ? Math.max(...DB.products.map(p => p.order ?? 0)) + 1 : 0;
+      const p     = { id, name, price, stock, img, order };
       DB.products.push(p);
       await fbSet('products', id, p);
     }
@@ -1472,7 +1502,7 @@ function onCustomerChange() {
 
 function renderPickerProducts() {
   const q = (document.getElementById('inv-product-search')?.value || '').toLowerCase();
-  const list = DB.products.filter(p => p.name.toLowerCase().includes(q));
+  const list = productsSorted().filter(p => p.name.toLowerCase().includes(q));
   const el = document.getElementById('picker-list');
   if (!list.length) { el.innerHTML = '<div class="empty-state"><p>אין מוצרים</p></div>'; return; }
   el.innerHTML = list.map(p => {
