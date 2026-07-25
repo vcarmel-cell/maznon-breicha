@@ -1075,10 +1075,14 @@ function genProdId() {
   while (ids.has('P' + String(n).padStart(3,'0'))) n++;
   return 'P' + String(n).padStart(3,'0');
 }
+function invN(num) { return parseInt((num || '0').replace(/\D/g, '')) || 0; }
+function cmpInvDesc(a, b) { return invN(b.num) - invN(a.num); }
+function cmpInvAsc(a, b)  { return invN(a.num) - invN(b.num); }
+
 function genInvNum() {
   if (!DB.invoices.length) return 'INV001';
-  const max = Math.max(...DB.invoices.map(i => parseInt(i.num.replace('INV','')) || 0));
-  return 'INV' + String(max + 1).padStart(3,'0');
+  const max = Math.max(...DB.invoices.map(i => invN(i.num)));
+  return 'INV' + String(max + 1).padStart(3, '0');
 }
 function fmt(n) {
   return '&#x20AA;' + parseFloat(n || 0).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1137,7 +1141,7 @@ function renderDashboard() {
     <div class="stat-card"><div class="stat-icon">&#x1F4B5;</div><div class="stat-label">הכנסות החודש</div><div class="stat-value" style="font-size:20px;">${fmt(revenue)}</div><div class="stat-sub">${monthStr(ym)}</div></div>
   `;
 
-  const recent = [...DB.invoices].sort((a,b) => b.num.localeCompare(a.num)).slice(0,5);
+  const recent = [...DB.invoices].sort(cmpInvDesc).slice(0,5);
   document.getElementById('recent-tbody').innerHTML = recent.length
     ? recent.map(inv => `
         <tr>
@@ -1649,7 +1653,7 @@ function renderInvoices() {
   const fc = document.getElementById('filter-customer')?.value || '';
   const list = DB.invoices
     .filter(i => (!fm || i.date.startsWith(fm)) && (!fc || i.customerId === fc))
-    .sort((a,b) => b.num.localeCompare(a.num));
+    .sort(cmpInvDesc);
 
   const sumEl = document.getElementById('filter-summary');
   if (list.length) {
@@ -2002,7 +2006,7 @@ function updateExpCount() {
 function runExport() {
   const fm   = document.getElementById('exp-month').value;
   const type = document.getElementById('exp-type').value;
-  const list = DB.invoices.filter(i => !fm || i.date.startsWith(fm)).sort((a,b)=>a.num.localeCompare(b.num));
+  const list = DB.invoices.filter(i => !fm || i.date.startsWith(fm)).sort(cmpInvAsc);
   if (!list.length) { alert('אין נתונים לייצוא'); return; }
 
   const wb = XLSX.utils.book_new();
