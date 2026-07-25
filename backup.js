@@ -71,14 +71,19 @@ function fsToJS(val) {
 }
 
 async function fetchCollection(name, token) {
-  const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/${name}?key=${API_KEY}&pageSize=1000`;
-  const data = await get(url, token);
-  if (!data.documents) return [];
-  return data.documents.map(doc => {
-    const obj = {};
-    for (const [k, v] of Object.entries(doc.fields || {})) obj[k] = fsToJS(v);
-    return obj;
-  });
+  const base = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/${name}?key=${API_KEY}&pageSize=300`;
+  let all = [], nextPage = null;
+  do {
+    const url  = nextPage ? `${base}&pageToken=${nextPage}` : base;
+    const data = await get(url, token);
+    (data.documents || []).forEach(doc => {
+      const obj = {};
+      for (const [k, v] of Object.entries(doc.fields || {})) obj[k] = fsToJS(v);
+      all.push(obj);
+    });
+    nextPage = data.nextPageToken || null;
+  } while (nextPage);
+  return all;
 }
 
 async function run() {

@@ -2207,18 +2207,17 @@ async function boot() {
     await fbInit();
     if (!fdb)       { document.getElementById('offline-indicator').style.display = 'flex'; return; }
 
-    const [c, p, i, s] = await Promise.race([
+    // Load customers, products, settings quickly (no invoices yet — they can be large)
+    const [c, p, s] = await Promise.race([
       Promise.all([
         fdb.collection('customers').get(),
         fdb.collection('products').get(),
-        fdb.collection('invoices').get(),
         fdb.collection('settings').doc('config').get()
       ]),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Firestore timeout')), 8000))
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Firestore timeout')), 15000))
     ]);
     DB.customers = c.docs.map(d => d.data());
     DB.products  = p.docs.map(d => d.data());
-    DB.invoices  = i.docs.map(d => d.data());
     if (s.exists) {
       if (s.data().pin)       localStorage.setItem('billing_pin',       s.data().pin);
       if (s.data().sales_pin) localStorage.setItem('billing_sales_pin', s.data().sales_pin);
@@ -2227,8 +2226,22 @@ async function boot() {
     if (adminMode) {
       showPage('dashboard');
     } else if (!document.getElementById('login-screen').style.display || document.getElementById('login-screen').style.display === 'none') {
-      initNewInvoice(); // refresh dropdown after login, no PIN popup
+      initNewInvoice();
     }
+
+    // Load invoices in background — no timeout, no blocking
+    fdb.collection('invoices').get().then(i => {
+      DB.invoices = i.docs.map(d => d.data());
+      dbSave();
+      // Refresh current view if it shows invoices
+      const activePage = document.querySelector('.page.active');
+      if (activePage) {
+        const pid = activePage.id.replace('page-', '');
+        if (pid === 'invoices')   { populateInvoiceFilters(); renderInvoices(); }
+        if (pid === 'dashboard')  renderDashboard();
+      }
+    }).catch(e => console.warn('Invoices background load:', e.message));
+
   } catch(e) {
     console.warn('Firebase sync:', e.message);
     document.getElementById('offline-indicator').style.display = 'flex';
