@@ -435,6 +435,7 @@ body.admin-mode #sales-footer    { display: none !important; }
             <div id="cart-empty-msg" style="color:#94A3B8; text-align:center; padding:24px 0; font-size:13px;">
               לא נבחרו פריטים
             </div>
+            <div id="promo-line" style="display:none; text-align:center; font-size:12px; font-weight:700; color:#EA580C; margin-top:6px;"></div>
             <div id="cart-total-row" class="cart-total" style="display:none;">
               <span>סה"כ לתשלום:</span>
               <span id="cart-total-val" style="color:#0284C7;">&#x20AA;0</span>
@@ -596,6 +597,12 @@ body.admin-mode #sales-footer    { display: none !important; }
         <label>כמות במלאי *</label>
         <input type="number" id="prod-stock" placeholder="0" min="0">
       </div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="prod-icecream" style="width:16px; height:16px;">
+        &#x1F366; מוצר גלידה (משתתף במבצע 4+1)
+      </label>
     </div>
     <div class="form-group">
       <label>תמונת מוצר (אופציונלי)</label>
@@ -1331,7 +1338,7 @@ function renderProducts() {
       <button class="btn btn-sm btn-outline" style="padding:3px 7px;font-size:13px;" ${i === list.length-1 ? 'disabled' : ''} onclick="moveProduct('${p.id}',1)" title="הזז למטה">&#x25BC;</button>`;
     return `<tr>
       <td style="padding:8px;">${imgCell}</td>
-      <td><strong>${p.name}</strong></td>
+      <td><strong>${p.name}</strong>${p.isIceCream ? ' &#x1F366;' : ''}</td>
       <td>${fmt(p.price)}</td>
       <td>${badge}</td>
       <td style="white-space:nowrap;">${arrows}</td>
@@ -1352,12 +1359,14 @@ function openProductModal(id = null) {
     document.getElementById('prod-name').value = p.name;
     document.getElementById('prod-price').value = p.price;
     document.getElementById('prod-stock').value = p.stock;
+    document.getElementById('prod-icecream').checked = !!p.isIceCream;
     if (p.img) setProductImagePreview(p.img);
   } else {
     document.getElementById('prod-modal-title').textContent = '🍦 הוסף לתפריט';
     document.getElementById('prod-name').value = '';
     document.getElementById('prod-price').value = '';
     document.getElementById('prod-stock').value = '';
+    document.getElementById('prod-icecream').checked = false;
   }
   document.getElementById('product-modal').classList.remove('hidden');
 }
@@ -1411,16 +1420,17 @@ async function saveProduct() {
   if (price < 0 || stock < 0) { alert('מחיר ומלאי חייבים להיות אפס ומעלה'); return; }
   const imgSrc = document.getElementById('prod-img-thumb').src;
   const img = imgSrc && imgSrc.startsWith('data:') ? imgSrc : '';
+  const isIceCream = document.getElementById('prod-icecream').checked;
   showLoading(true);
   try {
     if (_editProdId) {
       const p = DB.products.find(x => x.id === _editProdId);
-      p.name = name; p.price = price; p.stock = stock; p.img = img;
+      p.name = name; p.price = price; p.stock = stock; p.img = img; p.isIceCream = isIceCream;
       await fbSet('products', _editProdId, p);
     } else {
       const id    = genProdId();
       const order = DB.products.length > 0 ? Math.max(...DB.products.map(p => p.order ?? 0)) + 1 : 0;
-      const p     = { id, name, price, stock, img, order };
+      const p     = { id, name, price, stock, img, order, isIceCream };
       DB.products.push(p);
       await fbSet('products', id, p);
     }
@@ -1519,7 +1529,7 @@ function renderPickerProducts() {
       ${noStock ? 'disabled' : ''}
       onclick="cartAdd('${p.id}')">
       ${imgHtml}
-      <div class="pb-name">${p.name}</div>
+      <div class="pb-name">${p.isIceCream ? '&#x1F366; ' : ''}${p.name}</div>
       <div class="pb-price">${fmt(p.price)}</div>
       ${inCart ? `<div class="pb-qty">✓ ×${inCart.qty}</div>` : ''}
     </button>`;
@@ -1546,12 +1556,42 @@ function cartRemove(pid) {
   renderCart(); renderPickerProducts();
 }
 
+// Ice cream 4+1 promo: for every 5 units of ice-cream products in the cart, the cheapest of the 5 is free
+function iceCreamPromoDiscount(cart) {
+  const units = [];
+  cart.forEach(item => {
+    const p = DB.products.find(x => x.id === item.pid);
+    if (p && p.isIceCream) for (let i = 0; i < item.qty; i++) units.push(item.price);
+  });
+  units.sort((a, b) => a - b);
+  const freeCount = Math.floor(units.length / 5);
+  const discount = units.slice(0, freeCount).reduce((s, v) => s + v, 0);
+  return Math.round(discount * 100) / 100;
+}
+
+// Cart pricing: ice-cream promo is always-on; employee discount is exclusive with it (whichever saves more wins)
+function computeCartPricing(cart, employeeDiscount) {
+  const rawTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const promoDiscount = iceCreamPromoDiscount(cart);
+  const employeeDiscountAmt = Math.round(rawTotal * 0.30 * 100) / 100;
+  if (employeeDiscount && employeeDiscountAmt >= promoDiscount) {
+    return { rawTotal, total: Math.round(rawTotal * 0.70 * 100) / 100, kind: 'employee' };
+  }
+  if (promoDiscount > 0) {
+    return { rawTotal, total: Math.round((rawTotal - promoDiscount) * 100) / 100, kind: 'icecream', promoDiscount };
+  }
+  return { rawTotal, total: rawTotal, kind: 'none' };
+}
+
 function renderCart() {
   const list = document.getElementById('cart-items-list');
   const empty = document.getElementById('cart-empty-msg');
   const totRow = document.getElementById('cart-total-row');
+  const promoLine = document.getElementById('promo-line');
   if (!_cart.length) {
-    list.innerHTML = ''; empty.style.display = 'block'; totRow.style.display = 'none'; return;
+    list.innerHTML = ''; empty.style.display = 'block'; totRow.style.display = 'none';
+    if (promoLine) promoLine.style.display = 'none';
+    return;
   }
   empty.style.display = 'none'; totRow.style.display = 'flex';
   list.innerHTML = _cart.map(item => `
@@ -1562,13 +1602,16 @@ function renderCart() {
       <span class="cprice">${fmt(item.price * item.qty)}</span>
       <button class="btn btn-sm btn-danger" onclick="cartRemove('${item.pid}')">&#x2715;</button>
     </div>`).join('');
-  const rawTotal = _cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const finalTotal = _employeeDiscount ? rawTotal * 0.70 : rawTotal;
+  const { rawTotal, total: finalTotal, kind, promoDiscount } = computeCartPricing(_cart, _employeeDiscount);
   const totalEl = document.getElementById('cart-total-val');
-  if (_employeeDiscount) {
+  if (kind !== 'none') {
     totalEl.innerHTML = `<span style="text-decoration:line-through;color:#94A3B8;font-size:14px;font-weight:600;">${fmt(rawTotal)}</span> <span style="color:#EA580C;">${fmt(finalTotal)}</span>`;
   } else {
     totalEl.innerHTML = fmt(rawTotal);
+  }
+  if (promoLine) {
+    promoLine.style.display = kind === 'icecream' ? 'block' : 'none';
+    if (kind === 'icecream') promoLine.innerHTML = `&#x1F366; מבצע 4+1 גלידות: -${fmt(promoDiscount)}`;
   }
 }
 
@@ -1581,12 +1624,12 @@ async function saveInvoice() {
 
   const cust     = custId === 'GUEST' ? { name: 'לקוח מזדמן', phone: '' } : DB.customers.find(c => c.id === custId);
   const items    = _cart.map(i => ({ pid: i.pid, name: i.name, price: i.price, qty: i.qty }));
-  const rawTotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const total    = _employeeDiscount ? Math.round(rawTotal * 0.70 * 100) / 100 : rawTotal;
+  const { rawTotal, total, kind, promoDiscount } = computeCartPricing(_cart, _employeeDiscount);
   const time     = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
   const inv      = {
     num: genInvNum(), customerId: custId, customerName: cust.name, date, time, items, total,
-    ...(_employeeDiscount ? { discount: 30, originalTotal: rawTotal } : {})
+    ...(kind === 'employee' ? { discount: 30, originalTotal: rawTotal } : {}),
+    ...(kind === 'icecream' ? { iceCreamDiscount: promoDiscount, originalTotal: rawTotal } : {})
   };
 
   // Deduct stock in memory
@@ -1628,10 +1671,12 @@ function previewPrint() {
   const date   = document.getElementById('inv-date').value;
   if (!custId || !_cart.length) { alert('יש לבחור לקוח ולהוסיף מוצרים לפני הדפסה'); return; }
   const cust = custId === 'GUEST' ? { name: 'לקוח מזדמן', phone: '' } : DB.customers.find(c => c.id === custId);
-  const total = _cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const { rawTotal, total, kind, promoDiscount } = computeCartPricing(_cart, _employeeDiscount);
   printHTML(buildInvoiceHTML({
     num: 'טיוטה', customerName: cust.name, customerId: custId,
-    phone: cust.phone, date, items: _cart.map(i=>({...i})), total
+    phone: cust.phone, date, items: _cart.map(i=>({...i})), total,
+    ...(kind === 'employee' ? { discount: 30, originalTotal: rawTotal } : {}),
+    ...(kind === 'icecream' ? { iceCreamDiscount: promoDiscount, originalTotal: rawTotal } : {})
   }));
 }
 
@@ -1733,6 +1778,9 @@ function buildInvoiceHTML(inv) {
   const discountLine = inv.discount ? `
       <div style="display:flex; justify-content:space-between; font-size:14px; color:#EA580C; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #E2E8F0; font-weight:700;">
         <span>&#x1F477; הנחת עובד ${inv.discount}%</span><span>-&#x20AA;${(inv.originalTotal - inv.total).toFixed(2)}</span>
+      </div>` : inv.iceCreamDiscount ? `
+      <div style="display:flex; justify-content:space-between; font-size:14px; color:#EA580C; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #E2E8F0; font-weight:700;">
+        <span>&#x1F366; מבצע 4+1 גלידות</span><span>-&#x20AA;${inv.iceCreamDiscount.toFixed(2)}</span>
       </div>` : '';
 
   const totalSection = isGuest ? `
