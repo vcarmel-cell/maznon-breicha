@@ -601,7 +601,7 @@ body.admin-mode #sales-footer    { display: none !important; }
     <div class="form-group">
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
         <input type="checkbox" id="prod-icecream" style="width:16px; height:16px;">
-        &#x1F366; מוצר גלידה (משתתף במבצע 4+1)
+        &#x1F366; מוצר גלידה (משתתף במבצע - כל שלישית חינם)
       </label>
     </div>
     <div class="form-group">
@@ -1556,7 +1556,7 @@ function cartRemove(pid) {
   renderCart(); renderPickerProducts();
 }
 
-// Ice cream 4+1 promo: for every 5 units of ice-cream products in the cart, the cheapest of the 5 is free
+// Ice cream promo: for every 3 units of ice-cream products in the cart, the cheapest of the 3 is free
 function iceCreamPromoDiscount(cart) {
   const units = [];
   cart.forEach(item => {
@@ -1564,7 +1564,7 @@ function iceCreamPromoDiscount(cart) {
     if (p && p.isIceCream) for (let i = 0; i < item.qty; i++) units.push(item.price);
   });
   units.sort((a, b) => a - b);
-  const freeCount = Math.floor(units.length / 5);
+  const freeCount = Math.floor(units.length / 3);
   const discount = units.slice(0, freeCount).reduce((s, v) => s + v, 0);
   return Math.round(discount * 100) / 100;
 }
@@ -1611,7 +1611,7 @@ function renderCart() {
   }
   if (promoLine) {
     promoLine.style.display = kind === 'icecream' ? 'block' : 'none';
-    if (kind === 'icecream') promoLine.innerHTML = `&#x1F366; מבצע 4+1 גלידות: -${fmt(promoDiscount)}`;
+    if (kind === 'icecream') promoLine.innerHTML = `&#x1F366; מבצע גלידה שלישית חינם: -${fmt(promoDiscount)}`;
   }
 }
 
@@ -1780,7 +1780,7 @@ function buildInvoiceHTML(inv) {
         <span>&#x1F477; הנחת עובד ${inv.discount}%</span><span>-&#x20AA;${(inv.originalTotal - inv.total).toFixed(2)}</span>
       </div>` : inv.iceCreamDiscount ? `
       <div style="display:flex; justify-content:space-between; font-size:14px; color:#EA580C; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #E2E8F0; font-weight:700;">
-        <span>&#x1F366; מבצע 4+1 גלידות</span><span>-&#x20AA;${inv.iceCreamDiscount.toFixed(2)}</span>
+        <span>&#x1F366; מבצע גלידה שלישית חינם</span><span>-&#x20AA;${inv.iceCreamDiscount.toFixed(2)}</span>
       </div>` : '';
 
   const totalSection = isGuest ? `
